@@ -34,6 +34,9 @@ button.primary{background:var(--accent);color:#1a1200;font-weight:800}
 button.danger{background:var(--danger);color:#fff;font-weight:700}
 button.ok{background:var(--ok);color:#06301f;font-weight:700}
 button.ghost{background:transparent;border:1px solid var(--line)}
+.intro-links{display:flex;flex-wrap:wrap;gap:10px}
+.linkbtn{display:inline-flex;align-items:center;min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none;font-weight:600}
+.linkbtn:hover,.linkbtn:focus-visible{border-color:var(--accent);color:var(--accent)}
 input[type=text],input[type=number],textarea,select{font-family:inherit;font-size:1rem;background:#0c0d1c;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px}
 textarea{width:100%;min-height:220px;resize:vertical}
 h1,h2,h3{margin:0 0 8px;line-height:1.2}
@@ -457,6 +460,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
         <div><div class="hero-kicker">2026 우당탕탕요절복통</div><h1 class="hero-title">송년회 및 자체대회</h1><div class="hero-date">26.11.14(토) · 07:00~10:00 · 태릉중학교 체육관</div></div>
       </div>
       <button class="primary huge" id="btnEnter">입장하기 ▶</button>
+      <div class="intro-links"><a class="linkbtn" id="lnkPosterFull" href="assets/poster_A_full.jpg" target="_blank" rel="noopener">🖼 포스터 원본 크게 보기</a><a class="linkbtn" id="lnkMc" href="mc.html" target="_blank" rel="noopener">🎤 MC 진행 대본·음성</a></div>
       <div class="info-grid">
         <div class="info"><h3>⏰ 입장·복장</h3><p>06:45 체육관 입장 시간 기준<br>복장: 단체티 + 검정색 반바지<br><span class="muted small">(단체티 미지급 회원은 검정티)</span><br>참가비 없음 · 기념품 우당탕탕 수건</p></div>
         <div class="info"><h3>💸 벌금</h3><p>지각 <b>3만원</b> · 무단결석 <b>5만원</b><br>복장불량 <b>3만원</b><br>각 조 꼴찌 <b>5천원</b> (전반·후반 전부)<br><span class="muted small">이벤트게임: 벌금 2만원 차감권(1회 한정, 12/31까지)</span></p></div>
