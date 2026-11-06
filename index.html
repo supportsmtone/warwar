@@ -459,7 +459,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
       <button class="primary huge" id="btnEnter">입장하기 ▶</button>
       <div class="info-grid">
         <div class="info"><h3>⏰ 입장·복장</h3><p>06:45 체육관 입장 시간 기준<br>복장: 단체티 + 검정색 반바지<br><span class="muted small">(단체티 미지급 회원은 검정티)</span><br>참가비 없음 · 기념품 우당탕탕 수건</p></div>
-        <div class="info"><h3>💸 벌금</h3><p>지각 <b>3만원</b> · 무단결석 <b>5만원</b><br>복장불량 <b>3만원</b><br>각 조 꼴찌 <b>5천원</b> (전반·후반 각각)<br><span class="muted small">이벤트게임: 벌금 2만원 차감권(1회 한정, 12/31까지)</span></p></div>
+        <div class="info"><h3>💸 벌금</h3><p>지각 <b>3만원</b> · 무단결석 <b>5만원</b><br>복장불량 <b>3만원</b><br>각 조 꼴찌 <b>5천원</b> (전반·후반 전부)<br><span class="muted small">이벤트게임: 벌금 2만원 차감권(1회 한정, 12/31까지)</span></p></div>
         <div class="info"><h3>🏆 상품</h3><p>후반전 1조 1등 <b>20만원</b> · 2등 <b>10만원</b> · 3등 <b>5만원</b><br><span class="muted small">(1·2등은 2027년 1월까지 준자강조 출전·출전비 지원, 미출전 시 상금 2배 환수)</span><br>나머지 각 조 1등 <b>3만원</b><br>벌금왕·출석왕 1등 5만 · 2등 3만 · 3등 2만원<br><span class="muted small">모두 신세계상품권</span></p></div>
         <div class="info"><h3>🎯 대진·급수</h3><p>전반전: 당일 추첨 랜덤 5개조<br>후반전: 전반전 각 조 순위에 따른 조배치<br>후반전 성적으로 <b>12월 31일까지</b> 급수 프로필 변경</p>
           <table class="gtable"><tr><td>1등</td><td><b>자강</b></td><td>2등</td><td><b>준자강</b></td></tr><tr><td>3~5등</td><td>S</td><td>6~9등</td><td>A</td></tr><tr><td>10~13등</td><td>B</td><td>14~18등</td><td>C</td></tr><tr><td>19~22등</td><td>D</td><td>23등~</td><td>초심</td></tr><tr><td colspan="2">하위 2명</td><td colspan="2">일반인</td></tr></table></div>
@@ -2239,7 +2239,7 @@ function renderHalf(which){
     body += '<p class="muted small">경기 카드를 누르면 숫자 패드가 열립니다. 동점은 엑셀과 같이 승패 미집계(득실만 반영). 순위 = 승률 → 득실차 → (입력된 경우) 나이 — 화면에는 승·패·득실만 표시합니다.</p>';
   } else if (u.sub === 'rank' || u.sub === 'board') {
     body += (u.sub === 'board' ? `<h2>📊 ${label} 실시간 순위</h2>` : '') + rankCardsHtml(which, ev, editable && u.sub === 'rank');
-    if (u.sub === 'rank') body += '<p class="muted small">각 조 꼴찌 벌금 5천원(전반·후반 각각). 완전 동률(승·패·득실·나이 모두 같음)은 「동률!」 — 조 경기가 모두 끝나면 동전 던지기 또는 직접 지정으로 정하고, 결정 기록이 남습니다.</p>';
+    if (u.sub === 'rank') body += '<p class="muted small">각 조 꼴찌 벌금 5천원(전반·후반 전부). 완전 동률(승·패·득실·나이 모두 같음)은 「동률!」 — 조 경기가 모두 끝나면 동전 던지기 또는 직접 지정으로 정하고, 결정 기록이 남습니다.</p>';
   } else if (u.sub === 'call') {
     body += callBoardHtml(which, ev);
   }
@@ -2478,7 +2478,7 @@ function renderAward(){
   if (!rows) { el.innerHTML = '<p class="notice">5. 후반전을 확정(잠금)하면 최종 순위·급수·상품이 나옵니다. 전체 순위 = 후반전 1조 → 5조 순서 + 조 내 순위(엑셀 결과창 방식).</p>'; return; }
   const prizes = rows.filter(r => r.prize);
   el.innerHTML = `<div class="grid2"><div class="box"><h2>🏆 상품 (신세계상품권)</h2><ul>${prizes.map(r => `<li><b>${esc(r.name)}</b> — ${esc(r.prize.label)}${r.prize.note ? `<br><span class="small muted">${esc(r.prize.note)}</span>` : ''}</li>`).join('')}</ul></div>
-    <div class="box"><h2>📌 안내</h2><p><b>급수 프로필 변경: 12월 31일까지</b> (우당탕탕 급수)</p><p class="small muted">급수 기준: ${state.settings.gradeMode === 'poster' ? '포스터 구간(1 자강·2 준자강·3~5 S·6~9 A·10~13 B·14~18 C·19~22 D·23~ 초심·하위 2명 일반인)' : '엑셀 본선 결과창 고정표(후반전 조·조 내 순위별)'}</p><p class="small muted">각 조 꼴찌 벌금 5천원(전반·후반 각각). 벌금왕·출석왕은 🔒 운영자 화면에서 집계합니다.</p></div></div>
+    <div class="box"><h2>📌 안내</h2><p><b>급수 프로필 변경: 12월 31일까지</b> (우당탕탕 급수)</p><p class="small muted">급수 기준: ${state.settings.gradeMode === 'poster' ? '포스터 구간(1 자강·2 준자강·3~5 S·6~9 A·10~13 B·14~18 C·19~22 D·23~ 초심·하위 2명 일반인)' : '엑셀 본선 결과창 고정표(후반전 조·조 내 순위별)'}</p><p class="small muted">각 조 꼴찌 벌금 5천원(전반·후반 전부). 벌금왕·출석왕은 🔒 운영자 화면에서 집계합니다.</p></div></div>
     <div class="box" style="margin-top:12px;overflow:auto"><table class="final"><thead><tr><th>순위</th><th>이름</th><th>후반 조·순위</th><th>승·패·득실</th><th>급수</th><th>상품</th></tr></thead><tbody>${rows.map(r => `<tr><td class="num">${r.overall}</td><td><b>${esc(r.name)}</b></td><td>${r.group}조 ${r.rankInGroup}위${r.last ? ' <span class="stamp">꼴찌</span>' : ''}</td><td>${r.w}승 ${r.l}패 ${signed(r.diff)}</td><td><span class="gbadge" data-g="${r.grade}">${r.grade}</span></td><td>${r.prize ? esc(r.prize.label.replace(/^.*?신세계상품권 /, '')) : ''}</td></tr>`).join('')}</tbody></table></div>`;
 }
 $('#gradeModeChips').addEventListener('change', e => { if (e.target.name !== 'gradeMode') return; state.settings.gradeMode = e.target.value; save(); renderAward(); });
