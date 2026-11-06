@@ -32,6 +32,7 @@ function makeScore(){
   return rnd() < 0.5 ? [21, lo] : [lo, 21];
 }
 const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
+const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 대진표 화면을 PC·휴대폰 크기로 저장
 
 (async () => {
   const f = path.join(profile, 'DevToolsActivePort'); let port;
@@ -47,6 +48,16 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
     else if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errs.push('CONSOLE ' + m.params.args.map(a => a.value || a.description).join(' ')); };
   const send = (method, params) => new Promise(res => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params: params || {} })); });
   await send('Runtime.enable');
+  async function shot(name){
+    if (!SHOTS) return;
+    for (const [w, h, tag] of [[1280, 900, 'pc'], [390, 844, 'mobile']]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 500 });
+      await sleep(500);
+      const r = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: w, height: Math.min(6000, await ev('document.documentElement.scrollHeight')), scale: 1 } });
+      fs.writeFileSync(path.join(SHOTS, `${name}_${tag}.png`), Buffer.from(r.result.data, 'base64'));
+    }
+    await send('Emulation.clearDeviceMetricsOverride');
+  }
   const ev = async expr => { const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
     if (r.result && r.result.exceptionDetails) throw new Error('eval: ' + expr.slice(0, 90) + ' → ' + ((r.result.exceptionDetails.exception || {}).description || r.result.exceptionDetails.text));
     return r.result && r.result.result ? r.result.result.value : undefined; };
@@ -101,7 +112,9 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
     const gb = await ev(`({boxes:document.querySelectorAll('#p-${which} .gbox').length, rows:document.querySelectorAll('#p-${which} tr[data-act="pad"]').length, heads:[...document.querySelectorAll('#p-${which} .gbox h3')].map(h=>h.textContent).join(',')})`);
     check(`${label} 기본 화면 = 조별 대진표 5개 표`, gb.boxes === 5 && gb.rows === EXPM, JSON.stringify(gb));
     const ids = await ev(`[...document.querySelectorAll('#p-${which} tr[data-act="pad"]')].map(r=>r.dataset.id)`);
+    let cnt = 0;
     for (const mid of ids) {
+      if (which === 'r2' && cnt++ === 14) await shot('r2_half');
       const [a, b] = makeScore();
       await click(`#p-${which} tr[data-act="pad"][data-id="${mid}"]`);
       await until(`!document.getElementById('pad').hidden`, 5000);
@@ -117,18 +130,20 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
       const row = await ev(`(document.querySelector('#p-${which} tr[data-id="${mid}"] td.sc')||{}).textContent||''`);
       if (row.replace(/\s/g, '') !== `${a}:${b}`) check(`${label} ${mid} 표 표시`, false, row);
     }
+    if (which === 'r2') await shot('r2_full');
     const nScored = await ev(`Object.keys(${S}.bracket.${which}.scores).length`);
     check(`${label} ${ids.length}경기 숫자패드 입력·표 표시`, nScored === ids.length && ids.length === EXPM, `${nScored}/${ids.length}`);
-    // 완전 동률이면 순위 탭의 동전 던지기
+    // 완전 동률이면 조별 대진표 안의 동전 던지기
+    let tieViaTable = false;
     for (let k = 0; k < 10 && await ev(`!!document.querySelector('#p-${which} .rtools .badge.tie')`); k++) {
-      await click(`#p-${which} [data-act="sub"][data-sub="rank"]`); await sleep(200);
-      await click(`#p-${which} [data-act="coin"]`); await sleep(300);
+      await click(`#p-${which} .gbox [data-act="coin"]`); await sleep(300);   // 조별 대진표 안의 동전 버튼
+      tieViaTable = true;
       log('   (동률 → 동전 던지기)');
       await click('#coinFlip'); await sleep(4500);
       if (!(await ev(`document.getElementById('coin').hidden`))) await click('#coinClose');
       await sleep(400);
-      await click(`#p-${which} [data-act="sub"][data-sub="match"]`);
     }
+    if (tieViaTable) check(`${label} 동률을 조별 대진표에서 바로 동전으로 결정`, !(await ev(`!!document.querySelector('#p-${which} .rtools .badge.tie')`)));
     await click(`#p-${which} [data-act="lock"]`);
     await until(`${S}.bracket.${which}.locked`, 8000).catch(() => {});
     check(`${label} 확정`, await ev(`!!${S}.bracket.${which}.locked`));
@@ -190,15 +205,20 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   const TPL_SRC = await ev(`JSON.stringify(BracketCore.TEMPLATES)`);   // 엑셀 로테이션 표(431/431 검증된 상수)
   const TEMPLATES = JSON.parse(TPL_SRC);
   function matchesOf(groups){ const out = []; groups.forEach(g => (TEMPLATES[g.members.length]).forEach(([A, B], i) => out.push({ id: g.no + '-' + (i + 1), g: g.no, a: A.map(s => g.members[s - 1].no), b: B.map(s => g.members[s - 1].no) }))); return out; }
-  function standings(groups, scores){
+  // 완전 동률(승·패·득실·나이 같음)은 화면에서 동전으로 정한 순서를 따른다 — 그 외는 전부 독립 계산
+  const appOrd = {};
+  for (const w of ['r1', 'r2']) { await tab('p-' + w); appOrd[w] = await ev(`[...document.querySelectorAll('#p-${w} table.gr tbody tr td.nm')].map(td=>td.textContent.replace(/동률|꼴찌 5천원/g,'').trim())`); }
+  await tab('p-award');
+  let coinTies = 0;
+  function standings(groups, scores, w){
     const x = new Map(); groups.forEach(g => g.members.forEach(m => x.set(m.no, { no: m.no, name: P.get(m.no).name, g: g.no, w: 0, l: 0, diff: 0 })));
     for (const m of matchesOf(groups)) { const s = scores[m.id]; if (!s) continue;
       m.a.forEach(n => { const p = x.get(n); p.diff += s.a - s.b; if (s.a > s.b) p.w++; else if (s.b > s.a) p.l++; });
       m.b.forEach(n => { const p = x.get(n); p.diff += s.b - s.a; if (s.b > s.a) p.w++; else if (s.a > s.b) p.l++; }); }
     for (const p of x.values()) p.score = (p.w / ((p.w + p.l) || 1)) * 1000 + p.diff + (+P.get(p.no).age || 0) * 0.03;
-    return groups.map(g => [...x.values()].filter(p => p.g === g.no).sort((a, b) => b.score - a.score));
+    return groups.map(g => [...x.values()].filter(p => p.g === g.no).sort((a, b) => { if (Math.abs(b.score - a.score) > 1e-9) return b.score - a.score; coinTies++; return appOrd[w].indexOf(a.name) - appOrd[w].indexOf(b.name); }));
   }
-  const g1 = standings(st.bracket.r1.groups, st.bracket.r1.scores);
+  const g1 = standings(st.bracket.r1.groups, st.bracket.r1.scores, 'r1');
   const dupe1 = g1.some(g => g.some((p, i) => i && Math.abs(p.score - g[i - 1].score) < 1e-9));
   const winners = g1.map(g => g[0]).sort((a, b) => b.score - a.score);
   const rest = g1.flatMap(g => g.slice(1)).sort((a, b) => b.score - a.score);
@@ -206,7 +226,8 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   const exp = SIZES.map(s => order.slice(k, k += s).sort((a, b) => a - b));
   const app = st.bracket.r2.groups.map(g => g.members.map(m => m.no).sort((a, b) => a - b));
   check('후반전 배치 = 독립 계산(엑셀 방식)', JSON.stringify(exp) === JSON.stringify(app) || dupe1, dupe1 ? '전반 완전 동률 있음(동전 결정) — 참고' : '');
-  const g2 = standings(st.bracket.r2.groups, st.bracket.r2.scores);
+  const g2 = standings(st.bracket.r2.groups, st.bracket.r2.scores, 'r2');
+  if (coinTies) log(`   (완전 동률 비교 ${coinTies}회 — 동전 결정 순서 적용)`);
   const fin = []; g2.forEach((g, gi) => g.forEach((p, i) => fin.push({ name: p.name, group: gi + 1, rank: i + 1, overall: fin.length + 1 })));
   const n = fin.length;
   const grade = r => r > n - 2 ? '일반인' : r === 1 ? '자강' : r === 2 ? '준자강' : r <= 5 ? 'S' : r <= 9 ? 'A' : r <= 13 ? 'B' : r <= 18 ? 'C' : r <= 22 ? 'D' : '초심';
@@ -223,6 +244,10 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   // 꼴찌 5천원: 각 조 대진표 아래 순위표의 배지 = 독립 계산
   const lastBadge = async w => { await tab('p-' + w); return ev(`[...document.querySelectorAll('#p-${w} table.gr tr.last td.nm')].map(td=>td.textContent.replace('꼴찌 5천원','').trim())`); };
   const L1 = await lastBadge('r1'), L2 = await lastBadge('r2');
+  const r2rows = await ev(`[...document.querySelectorAll('#p-r2 table.gr tbody tr')].map(tr=>[...tr.children].map(td=>td.textContent.replace(/동률|꼴찌 5천원/g,'').trim()))`);
+  const gMis = fin.filter((x, i) => { const r = r2rows[i] || []; return r[1] !== x.name || r[5] !== grade(x.overall) || (r[6] || '') !== (prize(x) || ''); });
+  check('후반전 조별 대진표 순위표의 급수·상품 = 독립 계산', r2rows.length === N && gMis.length === 0, gMis.slice(0, 2).map(x => x.name).join(','));
+  check('후반전 1조 「상금 조」 표시', await ev(`/상금 조/.test((document.querySelector('#p-r2 .gbox header')||{}).textContent||'')`));
   const e1 = g1.map(g => g[g.length - 1].name), e2 = g2.map(g => g[g.length - 1].name);
   check('꼴찌 5천원 표시(전반 5·후반 5) = 독립 계산', JSON.stringify(L1) === JSON.stringify(e1) && JSON.stringify(L2) === JSON.stringify(e2), `전반 ${L1.join(',')} / 후반 ${L2.join(',')}`);
   // MC 음성(시상)

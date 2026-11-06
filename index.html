@@ -310,6 +310,11 @@ table.gr{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:10px}
 table.gr th{color:var(--muted);font-weight:600;text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}
 table.gr td{padding:4px 6px;border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums}
 table.gr tr.last td{color:var(--bad,#ff6b6b)}
+table.gr td.grd{font-weight:800;color:var(--accent)}
+table.gr td.pz{font-weight:700;white-space:nowrap}
+table.gr tr.tied td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.gbox .tiebar{margin-top:8px}
+.badge.prize{background:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--accent)}
 .badge.red{background:#d64545;color:#fff}
 .mcard{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;cursor:pointer;box-shadow:3px 3px 0 rgba(0,0,0,.35);text-align:left;width:100%;color:var(--ink);min-height:0}
 .mcard:hover{border-color:var(--accent)}
@@ -2325,13 +2330,27 @@ function groupBracketHtml(which, ev, h, nm, editable, nexts){
         <td class="k">${m.k}${nx ? '<span class="now">지금</span>' : ''}</td><td class="t">${m.time}</td>
         <td class="ta ${aw ? 'win' : bw ? 'lose' : ''}">${teamCell(nm, m.a)}</td><td class="sc">${sc}</td><td class="tb ${bw ? 'win' : aw ? 'lose' : ''}">${teamCell(nm, m.b)}</td></tr>`;
     }).join('');
+    // 동률(승·패·득실·나이 모두 같음) — 조 경기가 끝나면 여기서 바로 동전/직접 결정
+    const tied = new Set(); let tiebar = '';
+    for (const blk of g.rank.blocks) {
+      if (blk.resolved) continue;
+      blk.nos.forEach(no => tied.add(no));
+      const names = blk.nos.map(no => esc(g.byNo.get(no).name)).join(' · ');
+      tiebar += `<div class="tiebar"><span class="badge tie">동률!</span><span>${names}</span><span class="spacer"></span>` + (g.complete && editable ? `<button class="primary" data-act="coin" data-key="${esc(blk.key)}" data-nos="${blk.nos.join(',')}" data-title="${g.no}조 동률">🪙 동전</button><button data-act="manual" data-key="${esc(blk.key)}" data-nos="${blk.nos.join(',')}" data-title="${g.no}조 동률">✋ 직접</button>` : `<span class="muted small">${g.complete ? '확정됨' : '조 경기가 끝나면 결정'}</span>`) + '</div>';
+    }
+    // 후반전: 순위 = 급수·상품 (후반전 1조 → 5조 순서 + 조 내 순위)
+    const isR2 = which === 'r2', nAll = ev.groups.reduce((a, x) => a + x.members.length, 0);
+    const offset = ev.groups.filter(x => x.no < g.no).reduce((a, x) => a + x.members.length, 0);
     const rank = g.rank.order.map((no, i) => { const x = g.byNo.get(no); const last = g.complete && g.last === no;
-      return `<tr class="${last ? 'last' : ''}"><td>${i + 1}</td><td class="nm">${esc(x.name)}${last ? ' <span class="badge red">꼴찌 5천원</span>' : ''}</td><td>${x.w}</td><td>${x.l}</td><td>${x.diff > 0 ? '+' : ''}${x.diff}</td></tr>`; }).join('');
+      let extra = '';
+      if (isR2) { const row = { overall: offset + i + 1, group: g.no, rankInGroup: i + 1 }; const gr = B.gradeOf(row, nAll, state.settings.gradeMode); const pz = B.prizeOf(row);
+        extra = `<td class="grd">${esc(gr)}</td><td class="pz">${pz ? `${pz.amount / 10000}만원` : ''}</td>`; }
+      return `<tr class="${last ? 'last' : ''} ${tied.has(no) ? 'tied' : ''}"><td>${i + 1}</td><td class="nm">${esc(x.name)}${tied.has(no) ? ' <span class="badge tie">동률</span>' : ''}${last ? ' <span class="badge red">꼴찌 5천원</span>' : ''}</td><td>${x.w}</td><td>${x.l}</td><td>${x.diff > 0 ? '+' : ''}${x.diff}</td>${extra}</tr>`; }).join('');
     return `<section class="gbox" style="--gc:${color}">
-      <header><h3>${g.no}조</h3><span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · ${done}/${ms.length}경기</span></header>
+      <header><h3>${g.no}조</h3>${which === 'r2' && g.no === 1 ? '<span class="badge prize">🏆 상금 조 20·10·5만원</span>' : ''}<span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · ${done}/${ms.length}경기</span></header>
       <div class="gmembers">${g.members.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>
       <div class="gbscroll"><table class="gb"><thead><tr><th>경기</th><th>시각</th><th>A팀</th><th>점수</th><th>B팀</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <table class="gr"><thead><tr><th>순위</th><th>이름</th><th>승</th><th>패</th><th>득실</th></tr></thead><tbody>${rank}</tbody></table>
+      <table class="gr"><thead><tr><th>순위</th><th>이름</th><th>승</th><th>패</th><th>득실</th>${which === 'r2' ? `<th>급수${g.complete ? '' : '(현재)'}</th><th>상품</th>` : ''}</tr></thead><tbody>${rank}</tbody></table>${tiebar}
     </section>`;
   }).join('') + '</div>';
 }
