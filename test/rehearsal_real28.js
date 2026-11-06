@@ -72,6 +72,7 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   check('주소 #groups', await ev('location.hash') === '#groups');
   check('MC 음성 버튼(조편성)', /조 추첨/.test(await ev(`[...document.querySelectorAll('#mcbar button')].map(b=>b.textContent).join('|')`)));
   await ev(`window.__spoken=new Set(); window.__ob && window.__ob.disconnect(); window.__ob=new MutationObserver(ms=>ms.forEach(m=>{ const t=m.target; if(t.classList&&t.classList.contains('speaking')&&t.dataset.no) window.__spoken.add(t.dataset.no) })); window.__ob.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']}); true`);
+  await ev(`window.__ovl=[]; new MutationObserver(()=>{const t=(document.getElementById('overlay')||{}).textContent||''; if(t) window.__ovl.push(t)}).observe(document.getElementById('overlay'),{childList:true,subtree:true,characterData:true}); true`);
   const tA = Date.now();
   await click('#btnDraw'); await sleep(500);
   // 건너뛰기 없이 끝까지(이름이 꽂힐 때마다 방송)
@@ -80,6 +81,8 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   check('조편성 연출 시작과 함께 이름 방송 시작', await ev(`!!document.querySelector('#mcbar .annbtn.on')`));
   await until(`window.__spoken.size === ${N} && !document.querySelector('#mcbar .annbtn.on')`, 120000).catch(() => {});
   check(`조편성: 이름이 조에 꽂힐 때마다 방송 ${N}명(꽂힌 칩 강조)`, await ev('window.__spoken.size') === N, `${await ev('window.__spoken.size')}명 · ${Math.round((Date.now() - tA) / 1000)}초`);
+  const ovl = await ev('window.__ovl.join(" / ")');
+  check('마지막 한 명 드럼롤·두둥 연출 없음', !/마지막|두둥/.test(ovl), ovl.slice(0, 80));
   const plays1 = await ev('window.__plays.map(x=>x.src)');
   check('추첨 멘트가 먼저(카운트다운·이름 전)', plays1[0] === 'names/draw_pre.mp3' && plays1[1] === 'names/g1.mp3' && !plays1.includes('names/p_intro.mp3'), plays1.slice(0, 4).join(' → '));
   const spokenOrder = await ev('[...window.__spoken]');
@@ -130,6 +133,22 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
     await until(`${S}.bracket.${which}.locked`, 8000).catch(() => {});
     check(`${label} 확정`, await ev(`!!${S}.bracket.${which}.locked`));
   }
+  // 조편성을 바꾸는 상황: 점수 1개 입력 → 잠금 해제 → 다시 뽑기 → 전반전은 안내만 → 다시 확정하면 새 경기표
+  await tab('p-r1');
+  const firstId = await ev(`(document.querySelector('#p-r1 tr[data-act="pad"]')||{}).dataset.id`);
+  await click(`#p-r1 tr[data-act="pad"][data-id="${firstId}"]`); await until(`!document.getElementById('pad').hidden`, 5000);
+  await click('#padKeys button[data-k="T"]'); await click('#pad .pside[data-side="b"]'); await click('#padKeys button[data-k="9"]'); await click('#padSave'); await sleep(60);
+  if (!(await ev(`document.getElementById('pad').hidden`))) await click('#padSave');
+  await tab('p-draw'); await click('#btnUnlock'); await sleep(300);
+  await click('#btnDraw'); await sleep(400); if (await ev(`getComputedStyle(document.getElementById('btnSkip')).display!=='none'`)) await click('#btnSkip');
+  await until(`!document.querySelector('#mcbar .annbtn.on') && getComputedStyle(document.getElementById('btnSkip')).display==='none'`, 30000).catch(() => {});
+  await tab('p-r1');
+  const stale = await ev(`({notice:/조편성이 새로 바뀌었습니다/.test(document.getElementById('p-r1').textContent), tables:document.querySelectorAll('#p-r1 .gbox').length})`);
+  check('조편성이 바뀌면 전반전은 이전 경기표 숨김·안내', stale.notice && stale.tables === 0, JSON.stringify(stale));
+  await tab('p-draw'); await click('#btnLock'); await until(`${S}.draw.locked`);
+  await tab('p-r1');
+  const fresh = await ev(`({tables:document.querySelectorAll('#p-r1 .gbox').length, scores:Object.keys(${S}.bracket.r1.scores).length, same:${S}.bracket.r1.key === (${S}.draw.seed + '|' + ${S}.draw.drawnAt)})`);
+  check('다시 확정하면 새 조로 전반전 경기표(점수 0부터)', fresh.tables === 5 && fresh.scores === 0 && fresh.same, JSON.stringify(fresh));
   await playHalf('r1', '전반전', 'round1');
 
   await tab('p-place');
