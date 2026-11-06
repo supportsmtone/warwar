@@ -59,7 +59,7 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   // 0. 세부 URL: /players/ → /#players
   await until(`location.hash==='#players' && document.readyState==='complete' && !!document.querySelector('#p-part.active')`, 15000);
   check('세부 URL /players/ → 참가자 화면', true, await ev('location.pathname.slice(-11)+location.hash'));
-  await ev('window.confirm = () => true; true');   // 리허설 프로필 전용
+  await ev('window.confirm = () => true; window.__plays=[]; const _p=HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play=function(){ window.__plays.push({src:(this.src||"").split("/audio/")[1]||this.src, t:Date.now(), ov:(document.getElementById("overlay")||{}).textContent||""}); return _p.apply(this, arguments); }; true');   // 리허설 프로필 전용
 
   // 1. 참가자 붙여넣기
   await ev(`document.getElementById('pasteBox').value = ${JSON.stringify(listText)}; true`);
@@ -74,12 +74,17 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   await ev(`window.__spoken=new Set(); window.__ob && window.__ob.disconnect(); window.__ob=new MutationObserver(ms=>ms.forEach(m=>{ const t=m.target; if(t.classList&&t.classList.contains('speaking')&&t.dataset.no) window.__spoken.add(t.dataset.no) })); window.__ob.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']}); true`);
   const tA = Date.now();
   await click('#btnDraw'); await sleep(500);
-  if (await ev(`getComputedStyle(document.getElementById('btnSkip')).display!=='none'`)) await click('#btnSkip');
+  // 건너뛰기 없이 끝까지(이름이 꽂힐 때마다 방송)
   await until(`!!${S}.draw && !!${S}.draw.groups`, 60000);
   await until(`!!document.querySelector('#mcbar .annbtn.on')`, 15000).catch(() => {});
-  check('조편성 끝나면 이름 발표 자동 시작', await ev(`!!document.querySelector('#mcbar .annbtn.on')`));
+  check('조편성 연출 시작과 함께 이름 방송 시작', await ev(`!!document.querySelector('#mcbar .annbtn.on')`));
   await until(`window.__spoken.size === ${N} && !document.querySelector('#mcbar .annbtn.on')`, 120000).catch(() => {});
-  check(`조편성 이름 발표: ${N}명 모두 호명(화면 강조)`, await ev('window.__spoken.size') === N, `${await ev('window.__spoken.size')}명 · ${Math.round((Date.now() - tA) / 1000)}초`);
+  check(`조편성: 이름이 조에 꽂힐 때마다 방송 ${N}명(꽂힌 칩 강조)`, await ev('window.__spoken.size') === N, `${await ev('window.__spoken.size')}명 · ${Math.round((Date.now() - tA) / 1000)}초`);
+  const plays1 = await ev('window.__plays.map(x=>x.src)');
+  check('추첨 멘트가 먼저(카운트다운·이름 전)', plays1[0] === 'names/draw_pre.mp3' && plays1[1] === 'names/g1.mp3' && !plays1.includes('names/p_intro.mp3'), plays1.slice(0, 4).join(' → '));
+  const spokenOrder = await ev('[...window.__spoken]');
+  const drawOrder = await ev(`${S}.draw.groups.flatMap(g=>g.members.map(m=>String(m.no)))`);
+  check('방송 순서 = 1조→5조 꽂히는 순서', JSON.stringify(spokenOrder) === JSON.stringify(drawOrder));
   await click('#btnLock');
   await until(`${S}.draw.locked`);
   const sizes = await ev(`${S}.draw.groups.map(g=>g.members.length)`);
@@ -116,10 +121,9 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
       await click(`#p-${which} [data-act="sub"][data-sub="rank"]`); await sleep(200);
       await click(`#p-${which} [data-act="coin"]`); await sleep(300);
       log('   (동률 → 동전 던지기)');
-      await ev(`(()=>{const m=document.getElementById('coin'); const b=[...m.querySelectorAll('button')].find(x=>/던지기|결정|확인/.test(x.textContent)); b&&b.click(); return true})()`);
-      await sleep(4000);
-      await ev(`(()=>{const m=document.getElementById('coin'); if(m.hidden) return true; const b=[...m.querySelectorAll('button')].find(x=>/확정|적용|확인|닫기/.test(x.textContent)); b&&b.click(); return true})()`);
-      await sleep(500);
+      await click('#coinFlip'); await sleep(4500);
+      if (!(await ev(`document.getElementById('coin').hidden`))) await click('#coinClose');
+      await sleep(400);
       await click(`#p-${which} [data-act="sub"][data-sub="match"]`);
     }
     await click(`#p-${which} [data-act="lock"]`);
@@ -132,12 +136,22 @@ const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
   check('주소 #placement', await ev('location.hash') === '#placement');
   check('배치 방식 = 엑셀(각 조 1위→1조)', await ev(`${S}.settings.placeMode`) === 'excel');
   await ev(`window.__spoken=new Set(); window.__ob && window.__ob.disconnect(); window.__ob=new MutationObserver(ms=>ms.forEach(m=>{ const t=m.target; if(t.classList&&t.classList.contains('speaking')&&t.dataset.no) window.__spoken.add(t.dataset.no) })); window.__ob.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']}); true`);
-  const tB = Date.now();
+  let pt = 0;
+  while (await ev(`!!document.querySelector('#placeMsg [data-act="coin"]')`) && pt < 10) { pt++;
+    log('   (배치 경계 동률 → 공개 전 동전 던지기)');
+    const blocked = await (async () => { await click('#btnPlaceShow'); await sleep(300); return !(await ev(`!!document.querySelector('#mcbar .annbtn.on')`)); })();
+    if (pt === 1) check('경계 동률이면 공개·방송 막힘', blocked);
+    await click('#placeMsg [data-act="coin"]'); await sleep(300); await click('#coinFlip'); await sleep(4500);
+    if (!(await ev(`document.getElementById('coin').hidden`))) await click('#coinClose');
+    await sleep(500);
+  }
+  const tB = Date.now(); await ev('window.__plays=[]; true');
   await click('#btnPlaceShow'); await sleep(500);
-  if (await ev(`getComputedStyle(document.getElementById('btnPlaceSkip')).display!=='none'`)) await click('#btnPlaceSkip');
   await until(`!!document.querySelector('#mcbar .annbtn.on')`, 20000).catch(() => {});
   await until(`window.__spoken.size === ${N} && !document.querySelector('#mcbar .annbtn.on')`, 120000).catch(() => {});
-  check(`후반전 배치 이름 발표: ${N}명 모두 호명(화면 강조)`, await ev('window.__spoken.size') === N, `${await ev('window.__spoken.size')}명 · ${Math.round((Date.now() - tB) / 1000)}초`);
+  check(`후반전 배치: 이름이 나올 때마다 방송 ${N}명`, await ev('window.__spoken.size') === N, `${await ev('window.__spoken.size')}명 · ${Math.round((Date.now() - tB) / 1000)}초`);
+  const plays2 = await ev('window.__plays.map(x=>x.src)');
+  check('후반전 배치 규칙 멘트가 먼저(공개 전)', plays2[0] === 'names/place_pre.mp3' && plays2[1] === 'names/g5.mp3', plays2.slice(0, 3).join(' → '));
   const placeMsg = await ev(`document.getElementById('placeMsg').textContent`);
   if (/동률/.test(placeMsg)) log('   배치 메시지:', placeMsg.slice(0, 120));
   await click('#btnPlaceLock');

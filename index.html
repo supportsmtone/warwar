@@ -1213,6 +1213,12 @@ function annSpeak(text, myRun){   // 녹음이 없는 이름(현장 추가 인�
 }
 const annWait = (ms, myRun) => new Promise(r => setTimeout(() => r(myRun === Announce.run), ms));
 async function annName(name, myRun){ const k = NAME_CLIPS[String(name).trim()]; return k ? annPlay(`audio/names/${k}.mp3`, myRun) : annSpeak(name, myRun); }
+function liveCallStart(kind){   // 연출과 함께 부르는 방송 시작 → 토큰(멈춤 버튼·탭 이동·다시 뽑기 시 무효)
+  if (SELFTEST || DEMO) return null;
+  if (typeof McVoice !== 'undefined' && McVoice.key) mcStop();
+  annStop(); Announce.kind = kind; renderMcBar(currentTab()); return Announce.run;
+}
+function liveCallEnd(vr){ if (vr !== null && vr === Announce.run) { Announce.kind = null; renderMcBar(currentTab()); } }
 async function announceGroups(kind){
   if (SELFTEST) return false;
   const groups = kind === 'draw' ? (state.draw && state.draw.groups) : ((currentPlacement() || {}).groups);
@@ -1244,9 +1250,9 @@ async function announceGroups(kind){
 const MC_CLIPS = {
   'p-intro': [['01', '입장 전 안내'], ['02', '입장 마감·복장'], ['sia_1a', '오프닝(회장님 전)'], ['sia_1b', '오프닝(회장님 후·규칙)']],
   'p-part':  [['02', '입장 마감·복장']],
-  'p-draw':  [['04', '조 추첨'], ['05', '코트 배정']],
+  'p-draw':  [['names/draw_pre', '조 추첨 멘트'], ['05', '코트 배정']],
   'p-r1':    [['06', '전반전 시작'], ['07', '라운드 넘김'], ['08', '경기 중 멘트'], ['09', '이벤트게임 1차'], ['10', '전반 꼴찌 발표']],
-  'p-place': [['11', '후반전 조 배치']],
+  'p-place': [['names/place_pre', '후반전 배치 규칙']],
   'p-r2':    [['12', '후반전 시작'], ['13', '라운드 넘김'], ['14', '이벤트게임 2차'], ['15', '후반전 끝']],
   'p-award': [['16', '1조 1·2·3등'], ['17', '나머지 조 1등'], ['18', '벌금왕·출석왕'], ['19', '급수 발표(시아)'], ['20', '단체사진']],
 };
@@ -1674,10 +1680,15 @@ const Anim = (function(){
       for (const it of all) { if (!alive(id)) return; const chip = document.querySelector(`#groups .chip[data-no="${it.no}"]`); if (chip) chip.classList.remove('pending'); await wait(0); }
       return;
     }
+    // 음성 방송 시작: 조 추첨 멘트가 먼저, 끝나면 카운트다운 (건너뛰기·멈춤이면 음성 없이 진행)
+    const vr = liveCallStart('draw');
+    const voiceOn = () => vr !== null && vr === Announce.run && !A.skipping && alive(id);
+    if (voiceOn()) { overlay('🎤 MC 멘트', 'txt'); await annPlay('audio/names/draw_pre.mp3', vr); overlay(''); if (!alive(id)) return; }
     // 카운트다운 3·2·1
     for (const n of ['3', '2', '1']) { if (!alive(id)) return; overlay(n, 'big'); Sound.count(); stageShake(); await wait(680); }
     if (!alive(id)) return; overlay('추첨 시작!', 'txt'); Sound.go(); stageShake(); await wait(520); overlay('');
     if (!alive(id)) return;
+    // 이름이 조 칸에 꽂힐 때마다 그 이름, 조가 바뀌면 「N조!」
     const fx = d.effectUsed === 'capsule' ? capsuleFx() : d.effectUsed === 'roulette' ? rouletteFx(names) : slotFx(names);
     const seq = []; d.groups.forEach(g => g.members.forEach((m, k) => seq.push({ item: m, g: g.no, k: k + 1 })));
     for (let i = 0; i < seq.length; i++) {
@@ -1688,26 +1699,35 @@ const Anim = (function(){
         await wait(1500); stage.classList.remove('drum'); if (!alive(id)) return;
         overlay('두둥!!', 'txt'); Sound.boom(); stageShake(); await wait(600); overlay(''); if (!alive(id)) return;
       }
+      if (k === 1 && voiceOn()) { await annPlay(`audio/names/g${g}.mp3`, vr); if (!alive(id)) return; }
       const fromEl = await fx.reveal(item, g, k, id, isLast);
       if (!alive(id)) return;
       const placed = placeChip(item, fromEl, id);       // 이름이 카드로 날아가는 동안 다음 공개를 준비(겹쳐서 진행)
-      if (isLast) await placed; else await wait(100);
+      if (voiceOn()) {                                   // 꽂히는 순간 이름 방송 → 방송이 끝나면 다음 사람
+        await placed; if (!alive(id)) return;
+        const chip = document.querySelector(`#groups .chip[data-no="${item.no}"]`); if (chip) chip.classList.add('speaking');
+        await annName(item.name, vr);
+        if (chip) chip.classList.remove('speaking');
+      } else if (A.skipping && vr !== null && vr === Announce.run) { annStop(); }
+      else if (isLast) await placed; else await wait(100);
       if (A.skipping) await wait(Math.min(20, 500 / (seq.length - i)), true);   // 건너뛰기: 남은 인원을 0.5초 안에 순차 공개
     }
     if (!alive(id)) return;
     // 완료 축하
     $('#fx').innerHTML = '';
     if (!A.skipping) { Sound.fanfare(); stageShake(); Confetti.burst(220); $('#banner').classList.add('show'); await wait(1600); $('#banner').classList.remove('show'); }
+    if (voiceOn()) await annPlay('audio/names/p_hands.mp3', vr);
+    liveCallEnd(vr);
   }
 
   A.play = function(d, opts){
     A.cancel();
     const id = ++A.runId; A.running = true; A.skipping = false;
     d.effectUsed = state.settings.effect;
-    run(d, opts || {}, id).then(() => { if (alive(id) && !SELFTEST && !(opts && opts.silent)) setTimeout(() => { if (currentTab() === 'p-draw') announceGroups('draw'); }, 300); }).catch(e => { console.error(e); }).finally(() => { if (alive(id)) { A.running = false; A.skipping = false; $('#btnSkip').style.display = 'none'; $('#stage').classList.remove('drum'); renderFinal(); } });
+    run(d, opts || {}, id).catch(e => { console.error(e); }).finally(() => { if (alive(id)) { A.running = false; A.skipping = false; $('#btnSkip').style.display = 'none'; $('#stage').classList.remove('drum'); renderFinal(); } });
   };
   A.skip = function(){ if (!A.running) return; A.skipping = true; flushWaits(); $('#overlay').className = ''; $('#stage').classList.remove('drum'); };
-  A.cancel = function(){ A.runId++; A.running = false; A.skipping = false; flushWaits(); $$('.fly').forEach(f => f.remove()); $('#overlay').className = ''; $('#banner').classList.remove('show'); $('#stage').classList.remove('drum', 'shake'); $('#btnSkip').style.display = 'none'; };
+  A.cancel = function(){ if (typeof Announce !== 'undefined' && Announce.kind) annStop(); A.runId++; A.running = false; A.skipping = false; flushWaits(); $$('.fly').forEach(f => f.remove()); $('#overlay').className = ''; $('#banner').classList.remove('show'); $('#stage').classList.remove('drum', 'shake'); $('#btnSkip').style.display = 'none'; };
   return A;
 })();
 
@@ -1912,6 +1932,7 @@ async function runSelfTest(mode){
       ok('place_poster_mode', state.settings.placeMode === 'poster' && JSON.stringify(pcPoster.groups.map(g => g.members.length)) === JSON.stringify(sizes) && pcPoster.groups[0].members.slice(0, 5).every(m => m.fromRank === 1));
       const ex = $('#placeModeChips input[value="excel"]'); ex.checked = true; ex.dispatchEvent(new Event('change', { bubbles: true }));
       pc = currentPlacement();
+      if (pc.ties.length) ok('place_show_blocked_on_tie', (await playPlacement()) === false, 'ties=' + pc.ties.length); else out.checks.place_show_blocked_on_tie = 'SKIP(no tie)';
       let bTies = 0;
       while (pc.ties.length && bTies < 10) { bTies++; const t = pc.ties[0]; openTie({ which: 'place', key: t.key, nos: t.nos, title: '경계' }); await flipCoin(); $('#coinClose').click(); pc = currentPlacement(); }
       ok('place_boundary_ties_resolved', pc.ties.length === 0, 'boundaryTies=' + bTies);
@@ -2602,22 +2623,28 @@ $('#placeMsg').addEventListener('click', e => { const t = e.target.closest('[dat
 function placeOverlay(html){ const o = $('#placeOver'); o.innerHTML = html ? `<div class="txt">${html}</div>` : ''; o.className = 'fxover' + (html ? ' show' : ''); }
 async function playPlacement(){
   const c = currentPlacement(); if (!c) return false;
+  if (c.ties && c.ties.length) { toast('경계 동률을 먼저 정하세요(🪙 동전 또는 ✋ 직접) — 틀린 조가 방송되지 않게 공개를 막았습니다'); const m = $('#placeMsg'); m && m.scrollIntoView && m.scrollIntoView({ block: 'center', behavior: 'smooth' }); return false; }
   const id = Fx.start();
   $('#btnPlaceSkip').style.display = ''; $('#btnPlaceShow').disabled = true;
   const stage = $('#placeStage');
   $('#placeGroups').innerHTML = placeCardsHtml(c, true);
   try {
+    var vr = liveCallStart('place');
+    var voiceOn = () => vr !== null && vr === Announce.run && Fx.alive(id) && !Fx.fast();
+    if (voiceOn()) { placeOverlay('🎤 MC 멘트'); await annPlay('audio/names/place_pre.mp3', vr); placeOverlay(''); }
     placeOverlay('후반전 조 배치<br>공개!'); Sound.go(); shakeEl(stage); await Fx.wait(1100); placeOverlay('');
     for (let gi = c.groups.length - 1; gi >= 0; gi--) {
       if (!Fx.alive(id)) break;
       const g = c.groups[gi]; const card = $(`#placeGroups .card[data-g="${g.no}"]`);
       if (g.no === 1) { placeOverlay('대망의 1조는…<br><small style="font-size:.45em">두구두구두구</small>'); Sound.drum(1400); await Fx.wait(1400); placeOverlay(''); }
       card.classList.add('glow'); card.scrollIntoView && !Fx.fast() && card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (voiceOn()) await annPlay(`audio/names/${g.no === 1 ? 'p_r2g1' : 'g' + g.no}.mp3`, vr);
       for (const m of g.members) {
         if (!Fx.alive(id)) break;
         const ch = card.querySelector(`.pchip[data-no="${m.no}"]`); ch.classList.remove('hide'); ch.classList.add('in');
         if (ch.classList.contains('up')) Sound.pop(); else if (ch.classList.contains('down')) Sound.tick(); else Sound.click();
-        await Fx.wait(g.no === 1 ? 420 : 260);
+        if (voiceOn()) { ch.classList.add('speaking'); await annName(m.name, vr); ch.classList.remove('speaking'); await Fx.wait(120); }
+        else await Fx.wait(g.no === 1 ? 420 : 260);
       }
       if (g.no === 1 && Fx.alive(id)) { placeOverlay('👑 1조 입성!'); Sound.fanfare(); shakeEl(stage); const r = card.getBoundingClientRect(); burst(240, r.left + r.width / 2, r.top + 30); await Fx.wait(1500); placeOverlay(''); }
     }
@@ -2625,7 +2652,7 @@ async function playPlacement(){
     $$('#placeGroups .pchip.hide').forEach(x => x.classList.remove('hide'));
     placeOverlay(''); $('#btnPlaceSkip').style.display = 'none'; $('#btnPlaceShow').disabled = false; Fx.end(id);
   }
-  if (!SELFTEST && currentTab() === 'p-place') setTimeout(() => announceGroups('place'), 300);
+  if (typeof vr !== 'undefined') { if (voiceOn()) await annPlay('audio/names/p_move.mp3', vr); liveCallEnd(vr); }
   return true;
 }
 $('#btnPlaceShow').addEventListener('click', () => playPlacement());
