@@ -40,6 +40,9 @@ button.ghost{background:transparent;border:1px solid var(--line)}
 .mcbar button{min-height:34px;padding:5px 10px;font-size:.84rem;border:1px solid var(--line);background:transparent;border-radius:999px}
 .mcbar button.on{background:var(--accent);color:#111;border-color:var(--accent)}
 .mcbar button.sos{border-style:dashed}
+.mcbar button.annbtn{border-color:var(--accent);color:var(--accent);font-weight:800}
+.mcbar button.annbtn.on{background:var(--accent);color:#111}
+.chip.speaking,.pchip.speaking{outline:3px solid var(--accent);outline-offset:2px;transform:scale(1.08);transition:transform .15s}
 .linkbtn{display:inline-flex;align-items:center;min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none;font-weight:600}
 .linkbtn:hover,.linkbtn:focus-visible{border-color:var(--accent);color:var(--accent)}
 input[type=text],input[type=number],textarea,select{font-family:inherit;font-size:1rem;background:#0c0d1c;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px}
@@ -1190,6 +1193,53 @@ function toast(msg, ms){
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms || 2600);
 }
 
+/* ================= 이름 호명(AI 음성) — 조편성·후반전 배치 발표 ================= */
+const NAME_CLIPS = {"고동휘":"n01","김선욱":"n02","김영화":"n03","김재용":"n04","김종혁":"n05","김지환":"n06","김태현":"n07","김한얼":"n08","도민구":"n09","문교훈":"n10","문진우":"n11","민동현":"n12","박문철":"n13","박진우":"n14","박철준":"n15","서용":"n16","양승재":"n17","이거야":"n18","이명헌":"n19","임두형":"n20","임세훈":"n21","정창우":"n22","조재현":"n23","조준호":"n24","지승욱":"n25","최현민":"n26","한우석":"n27","홍석민":"n28"};   // 이름 → audio/names/nNN.mp3 (엑셀 명단 28명, Google AI 음성)
+const Announce = { kind: null, run: 0, el: null };
+function annStop(){ Announce.run++; Announce.kind = null; if (Announce.el) { try { Announce.el.pause(); } catch (e) {} } try { speechSynthesis.cancel(); } catch (e) {} $$('.speaking').forEach(x => x.classList.remove('speaking')); }
+function annPlay(src, myRun){
+  return new Promise(res => {
+    if (myRun !== Announce.run) return res(false);
+    if (!Announce.el) Announce.el = new Audio();
+    const a = Announce.el; let done = false; const fin = ok => { if (done) return; done = true; a.onended = a.onerror = null; res(ok); };
+    a.onended = () => fin(true); a.onerror = () => fin(false);
+    a.src = src; const pr = a.play(); if (pr && pr.catch) pr.catch(() => fin(false));
+    setTimeout(() => fin(true), 8000);
+  });
+}
+function annSpeak(text, myRun){   // 녹음이 없는 이름(현장 추가 인원)은 브라우저 한국어 음성으로
+  return new Promise(res => { if (myRun !== Announce.run) return res(false);
+    try { const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; u.rate = 1.0; u.onend = () => res(true); u.onerror = () => res(false); speechSynthesis.speak(u); setTimeout(() => res(true), 4000); } catch (e) { res(false); } });
+}
+const annWait = (ms, myRun) => new Promise(r => setTimeout(() => r(myRun === Announce.run), ms));
+async function annName(name, myRun){ const k = NAME_CLIPS[String(name).trim()]; return k ? annPlay(`audio/names/${k}.mp3`, myRun) : annSpeak(name, myRun); }
+async function announceGroups(kind){
+  if (SELFTEST) return false;
+  const groups = kind === 'draw' ? (state.draw && state.draw.groups) : ((currentPlacement() || {}).groups);
+  if (!groups || !groups.length) { toast(kind === 'draw' ? '조편성 결과가 없습니다' : '후반전 배치가 없습니다'); return false; }
+  if (McVoice && McVoice.key) { mcStop(); }
+  annStop(); const myRun = Announce.run; Announce.kind = kind; renderMcBar(currentTab());
+  const chipSel = no => kind === 'draw' ? `#groups .chip[data-no="${no}"]` : `#placeGroups .pchip[data-no="${no}"]`;
+  try {
+    if (!await annPlay(`audio/names/${kind === 'draw' ? 'p_intro' : 'p_r2intro'}.mp3`, myRun)) return false;
+    await annWait(350, myRun);
+    for (const g of groups) {
+      if (myRun !== Announce.run) return false;
+      const head = kind === 'place' && g.no === 1 ? 'p_r2g1' : 'g' + g.no;
+      await annPlay(`audio/names/${head}.mp3`, myRun); if (!await annWait(250, myRun)) return false;
+      for (const m of g.members) {
+        const el = document.querySelector(chipSel(m.no)); if (el) el.classList.add('speaking');
+        await annName(m.name, myRun);
+        if (el) el.classList.remove('speaking');
+        if (!await annWait(140, myRun)) return false;
+      }
+      if (!await annWait(450, myRun)) return false;
+    }
+    await annPlay(`audio/names/${kind === 'draw' ? 'p_hands' : 'p_move'}.mp3`, myRun);
+    return true;
+  } finally { if (myRun === Announce.run) { Announce.kind = null; renderMcBar(currentTab()); } }
+}
+
 /* ================= MC 음성(AI) — 단계별 진행 멘트 ================= */
 const MC_CLIPS = {
   'p-intro': [['01', '입장 전 안내'], ['02', '입장 마감·복장'], ['sia_1a', '오프닝(회장님 전)'], ['sia_1b', '오프닝(회장님 후·규칙)']],
@@ -1208,11 +1258,16 @@ function renderMcBar(tab){
   const list = MC_CLIPS[tab];
   if (!list) { bar.hidden = true; bar.innerHTML = ''; mcStop(); return; }
   bar.hidden = false;
-  bar.innerHTML = '<span class="mclabel">🎤 MC 음성</span>' + list.concat([['21', '비상 멘트']]).map(([k, t]) =>
+  const ann = tab === 'p-draw' ? 'draw' : tab === 'p-place' ? 'place' : null;
+  const annBtn = ann ? `<button type="button" class="annbtn${Announce.kind === ann ? ' on' : ''}" data-ann="${ann}">${Announce.kind === ann ? '■ 멈춤' : '📢 ' + (ann === 'draw' ? '조편성 이름 발표' : '후반전 배치 이름 발표')}</button>` : '';
+  bar.innerHTML = '<span class="mclabel">🎤 MC 음성</span>' + annBtn + list.concat([['21', '비상 멘트']]).map(([k, t]) =>
     `<button type="button" data-mc="${k}" class="${k === '21' ? 'sos' : ''}${McVoice.key === k ? ' on' : ''}">${McVoice.key === k ? '■ ' : '▶ '}${t}</button>`).join('');
 }
 document.getElementById('mcbar').addEventListener('click', e => {
+  const an = e.target.closest('button[data-ann]');
+  if (an) { if (Announce.kind === an.dataset.ann) { annStop(); renderMcBar(currentTab()); } else announceGroups(an.dataset.ann); return; }
   const b = e.target.closest('button[data-mc]'); if (!b) return;
+  annStop();
   const k = b.dataset.mc, playing = McVoice.key === k;
   mcStop();
   if (!playing) {
@@ -1231,6 +1286,7 @@ function routeTab(){ const h = (location.hash || '').replace(/^#/, ''); return R
 function setRoute(id){ const r = ROUTE_OF[id]; if (!r || SELFTEST) return; if (location.hash !== '#' + r) { try { history.replaceState(null, '', '#' + r); } catch (e) {} } }
 window.addEventListener('hashchange', () => { const t = routeTab(); if (t && !$('section#' + t).classList.contains('active')) showTab(t); });
 function showTab(id){
+  if (typeof Announce !== 'undefined' && Announce.kind) annStop();
   renderMcBar(id);
   setRoute(id);
   $$('section.panel').forEach(s => s.classList.toggle('active', s.id === id));
@@ -1648,7 +1704,7 @@ const Anim = (function(){
     A.cancel();
     const id = ++A.runId; A.running = true; A.skipping = false;
     d.effectUsed = state.settings.effect;
-    run(d, opts || {}, id).catch(e => { console.error(e); }).finally(() => { if (alive(id)) { A.running = false; A.skipping = false; $('#btnSkip').style.display = 'none'; $('#stage').classList.remove('drum'); renderFinal(); } });
+    run(d, opts || {}, id).then(() => { if (alive(id) && !SELFTEST && !(opts && opts.silent)) setTimeout(() => { if (currentTab() === 'p-draw') announceGroups('draw'); }, 300); }).catch(e => { console.error(e); }).finally(() => { if (alive(id)) { A.running = false; A.skipping = false; $('#btnSkip').style.display = 'none'; $('#stage').classList.remove('drum'); renderFinal(); } });
   };
   A.skip = function(){ if (!A.running) return; A.skipping = true; flushWaits(); $('#overlay').className = ''; $('#stage').classList.remove('drum'); };
   A.cancel = function(){ A.runId++; A.running = false; A.skipping = false; flushWaits(); $$('.fly').forEach(f => f.remove()); $('#overlay').className = ''; $('#banner').classList.remove('show'); $('#stage').classList.remove('drum', 'shake'); $('#btnSkip').style.display = 'none'; };
@@ -2569,6 +2625,7 @@ async function playPlacement(){
     $$('#placeGroups .pchip.hide').forEach(x => x.classList.remove('hide'));
     placeOverlay(''); $('#btnPlaceSkip').style.display = 'none'; $('#btnPlaceShow').disabled = false; Fx.end(id);
   }
+  if (!SELFTEST && currentTab() === 'p-place') setTimeout(() => announceGroups('place'), 300);
   return true;
 }
 $('#btnPlaceShow').addEventListener('click', () => playPlacement());
