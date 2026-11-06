@@ -1246,7 +1246,7 @@ async function announceGroups(kind){
       }
       if (!await annWait(450, myRun)) return false;
     }
-    await annPlay(`audio/names/${kind === 'draw' ? 'p_hands' : 'p_move'}.mp3`, myRun);
+    if (kind === 'place') await annPlay('audio/names/p_move.mp3', myRun);   // 조편성 끝 「손 한 번 들어 주세요」는 제거(대표 지시 11/7)
     return true;
   } finally { if (myRun === Announce.run) { Announce.kind = null; renderMcBar(currentTab()); } }
 }
@@ -1716,7 +1716,6 @@ const Anim = (function(){
     // 완료 축하
     $('#fx').innerHTML = '';
     if (!A.skipping) { Sound.fanfare(); stageShake(); Confetti.burst(220); $('#banner').classList.add('show'); await wait(1600); $('#banner').classList.remove('show'); }
-    if (voiceOn()) await annPlay('audio/names/p_hands.mp3', vr);
     liveCallEnd(vr);
   }
 
@@ -2406,7 +2405,9 @@ function renderHalf(which){
   }
   if (which === 'r1' && state.draw && h.key !== drawKey()) {
     const n = Object.keys(h.scores || {}).length;
-    el.innerHTML = `<div class="box"><h2>전반전 경기표</h2><p class="notice red"><b>조편성이 새로 바뀌었습니다.</b> 지금 경기표는 이전 조편성 기준이라 숨겼습니다.<br>2. 조편성에서 <b>확정(잠금)</b>을 누르면 새 조로 전반전 경기표가 만들어집니다.${n ? ` (이전 경기표 점수 ${n}개는 ⚙ 데이터·설정 → 되돌리기에 보관됩니다)` : ''}</p><button class="primary" data-act="go" data-tab="p-draw">2. 조편성으로</button></div>`;
+    el.innerHTML = `<div class="box"><h2>전반전 경기표</h2><p class="notice red"><b>조편성이 새로 바뀌었습니다.</b> 지금 경기표는 이전 조편성 기준이라 숨겼습니다.<br>아래 버튼을 누르면 <b>지금 조편성으로 확정</b>하고 바로 점수를 입력할 수 있습니다.${n ? ` (이전 경기표 점수 ${n}개는 ⚙ 데이터·설정 → 되돌리기에 보관됩니다)` : ''}</p>
+      <div class="gmembers" style="flex-direction:column;gap:4px">${state.draw.groups.map(g => `<span><b>${g.no}조</b> ${g.members.map(m => esc(m.name)).join(' · ')}</span>`).join('')}</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="ok" data-act="lockdraw">✅ 이 조편성으로 확정하고 점수 입력 시작</button><button class="ghost" data-act="go" data-tab="p-draw">2. 조편성 화면 보기</button></div></div>`;
     return;
   }
   const ev = evalHalf(which);
@@ -2427,7 +2428,7 @@ function renderHalf(which){
   else tools += `<button class="ok" data-act="lock" ${ev.ready ? '' : 'title="모든 점수 입력·동률 결정 후 확정"'}>${label} 확정(잠금)</button>`;
   tools += '</div>';
   let body = '';
-  if (!drawOk) body += '<p class="notice red">조편성 확정(잠금)이 풀려 있어 점수 입력이 잠겨 있습니다. <b>2. 조편성에서 「확정(잠금)」</b>을 다시 누르면 이어서 입력할 수 있습니다. <button class="primary" data-act="go" data-tab="p-draw">2. 조편성으로</button></p>';
+  if (!drawOk) body += '<p class="notice red">조편성 확정(잠금)이 풀려 있어 점수 입력이 잠겨 있습니다. <button class="ok" data-act="lockdraw">✅ 다시 확정하고 이어서 입력</button></p>';
   if (u.sub === 'match') {
     const nm = nameMap(), nexts = nextMatchIds(ev, h.scores);
     if (u.view === 'round') {
@@ -2458,6 +2459,7 @@ function halfClick(which, e){
   else if (act === 'lock') lockHalf(which);
   else if (act === 'unlock') unlockHalf(which, false);
   else if (act === 'go') showTab(t.dataset.tab);
+  else if (act === 'lockdraw') { lockDraw(); renderHalf(which); }
   else if (act === 'proj') { if (u.sub === 'match' || u.sub === 'rank') { u.sub = 'call'; renderHalf(which); } setProjector(true); }
   else if (act === 'demofill') { const n = demoFill(which); renderHalf(which); toast(`데모 점수 ${n}경기 입력`); }
   else if (act === 'coin' || act === 'manual') openTie({ which, key: t.dataset.key, nos: t.dataset.nos.split(',').map(Number), title: t.dataset.title, manual: act === 'manual' });

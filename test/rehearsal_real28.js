@@ -160,10 +160,9 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
   await tab('p-r1');
   const stale = await ev(`({notice:/조편성이 새로 바뀌었습니다/.test(document.getElementById('p-r1').textContent), tables:document.querySelectorAll('#p-r1 .gbox').length})`);
   check('조편성이 바뀌면 전반전은 이전 경기표 숨김·안내', stale.notice && stale.tables === 0, JSON.stringify(stale));
-  await tab('p-draw'); await click('#btnLock'); await until(`${S}.draw.locked`);
-  await tab('p-r1');
+  await click('#p-r1 [data-act="lockdraw"]'); await until(`${S}.draw.locked`);   // 전반전 화면에서 바로 확정
   const fresh = await ev(`({tables:document.querySelectorAll('#p-r1 .gbox').length, scores:Object.keys(${S}.bracket.r1.scores).length, same:${S}.bracket.r1.key === (${S}.draw.seed + '|' + ${S}.draw.drawnAt)})`);
-  check('다시 확정하면 새 조로 전반전 경기표(점수 0부터)', fresh.tables === 5 && fresh.scores === 0 && fresh.same, JSON.stringify(fresh));
+  check('전반전 화면 「이 조편성으로 확정하고 점수 입력 시작」 → 새 경기표(점수 0부터)', fresh.tables === 5 && fresh.scores === 0 && fresh.same, JSON.stringify(fresh));
   await playHalf('r1', '전반전', 'round1');
 
   await tab('p-place');
