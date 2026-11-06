@@ -35,6 +35,11 @@ button.danger{background:var(--danger);color:#fff;font-weight:700}
 button.ok{background:var(--ok);color:#06301f;font-weight:700}
 button.ghost{background:transparent;border:1px solid var(--line)}
 .intro-links{display:flex;flex-wrap:wrap;gap:10px}
+.mcbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 0 2px}
+.mcbar .mclabel{font-size:.82rem;font-weight:800;color:var(--accent);margin-right:2px;white-space:nowrap}
+.mcbar button{min-height:34px;padding:5px 10px;font-size:.84rem;border:1px solid var(--line);background:transparent;border-radius:999px}
+.mcbar button.on{background:var(--accent);color:#111;border-color:var(--accent)}
+.mcbar button.sos{border-style:dashed}
 .linkbtn{display:inline-flex;align-items:center;min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none;font-weight:600}
 .linkbtn:hover,.linkbtn:focus-visible{border-color:var(--accent);color:var(--accent)}
 input[type=text],input[type=number],textarea,select{font-family:inherit;font-size:1rem;background:#0c0d1c;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px}
@@ -272,6 +277,37 @@ button.huge{font-size:1.5rem;padding:16px 28px;min-height:64px}
 .rblock h3{display:flex;gap:10px;align-items:baseline;color:var(--accent)}
 .rblock h3 small{color:var(--muted);font-weight:600}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:10px}
+.gbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:14px;margin-bottom:12px}
+.gbox{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--gc);border-radius:12px;padding:12px;min-width:0}
+.gbox header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;position:static;background:none;border:0;padding:0;margin:0;box-shadow:none;backdrop-filter:none;z-index:auto}
+.gbox h3{margin:0;font-size:1.35rem;color:var(--gc)}
+.gbox .meta{color:var(--muted);font-weight:600;font-size:.9rem}
+.gmembers{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.gmembers span{font-size:.85rem;padding:2px 8px;border-radius:999px;background:var(--card2)}
+.gbscroll{overflow-x:auto}
+table.gb{width:100%;border-collapse:collapse;font-size:.95rem}
+table.gb th{font-size:.78rem;color:var(--muted);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.gb td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.gb td.k{font-weight:800;white-space:nowrap;width:2.6em}
+table.gb td.t{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;width:3.6em}
+table.gb td.ta,table.gb td.tb{min-width:0;word-break:keep-all}
+table.gb td.ta span,table.gb td.tb span{display:inline-block;margin-right:.5em}
+@media (max-width:560px){table.gb{font-size:.88rem}table.gb td{padding:7px 4px}table.gb td.ta span,table.gb td.tb span{display:block;margin:0}table.gb td.t{width:auto}table.gb th:nth-child(2),table.gb td.t{display:none}table.gb td.sc{width:4.4em}}
+table.gb td.win{font-weight:800}
+table.gb td.lose{opacity:.6}
+table.gb td.sc{text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:1.05rem;width:5.2em}
+table.gb td.sc i{font-style:normal;color:var(--muted);margin:0 3px}
+table.gb td.sc b.w{color:var(--accent)}
+table.gb td.sc .todo{display:inline-block;padding:2px 10px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);font-size:.85rem}
+table.gb tr.click{cursor:pointer}
+table.gb tr.click:hover td,table.gb tr.click:focus-visible td{background:var(--card2)}
+table.gb tr.next td{background:color-mix(in srgb,var(--ok) 12%,transparent)}
+table.gb .now{display:inline-block;margin-left:4px;font-size:.7rem;color:var(--ok);font-weight:800}
+table.gr{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:10px}
+table.gr th{color:var(--muted);font-weight:600;text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}
+table.gr td{padding:4px 6px;border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums}
+table.gr tr.last td{color:var(--bad,#ff6b6b)}
+.badge.red{background:#d64545;color:#fff}
 .mcard{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;cursor:pointer;box-shadow:3px 3px 0 rgba(0,0,0,.35);text-align:left;width:100%;color:var(--ink);min-height:0}
 .mcard:hover{border-color:var(--accent)}
 .mcard.locked{cursor:default}
@@ -436,7 +472,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
   <nav class="tabs" id="ptabs">
     <button data-tab="p-intro">🏠 인트로</button>
     <button data-tab="p-part">1. 참가자</button>
-    <button data-tab="p-draw" class="active">2. 추첨</button>
+    <button data-tab="p-draw" class="active">2. 조편성</button>
     <button data-tab="p-r1">3. 전반전</button>
     <button data-tab="p-place">4. 후반전 배치</button>
     <button data-tab="p-r2">5. 후반전</button>
@@ -444,6 +480,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
     <button data-tab="p-fine" class="optab">🔒 벌금·출석</button>
     <button data-tab="p-data">⚙ 데이터·설정</button>
   </nav>
+  <div class="mcbar" id="mcbar" hidden></div>
 </header>
 
 <main>
@@ -508,7 +545,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
   </div>
 </section>
 
-<!-- ===== 2. 추첨 ===== -->
+<!-- ===== 2. 조편성 ===== -->
 <section class="panel active" id="p-draw">
   <div id="drawbar">
     <div class="chips" id="effectChips" role="radiogroup" aria-label="연출 선택">
@@ -1152,7 +1189,50 @@ function toast(msg, ms){
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms || 2600);
 }
+
+/* ================= MC 음성(AI) — 단계별 진행 멘트 ================= */
+const MC_CLIPS = {
+  'p-intro': [['01', '입장 전 안내'], ['02', '입장 마감·복장'], ['sia_1a', '오프닝(회장님 전)'], ['sia_1b', '오프닝(회장님 후·규칙)']],
+  'p-part':  [['02', '입장 마감·복장']],
+  'p-draw':  [['04', '조 추첨'], ['05', '코트 배정']],
+  'p-r1':    [['06', '전반전 시작'], ['07', '라운드 넘김'], ['08', '경기 중 멘트'], ['09', '이벤트게임 1차'], ['10', '전반 꼴찌 발표']],
+  'p-place': [['11', '후반전 조 배치']],
+  'p-r2':    [['12', '후반전 시작'], ['13', '라운드 넘김'], ['14', '이벤트게임 2차'], ['15', '후반전 끝']],
+  'p-award': [['16', '1조 1·2·3등'], ['17', '나머지 조 1등'], ['18', '벌금왕·출석왕'], ['19', '급수 발표(시아)'], ['20', '단체사진']],
+};
+const McVoice = { el: null, key: null };
+function currentTab(){ const a = document.querySelector('nav.tabs button.active'); return a ? a.dataset.tab : ''; }
+function mcStop(){ if (McVoice.el) { try { McVoice.el.pause(); } catch (e) {} } McVoice.key = null; }
+function renderMcBar(tab){
+  const bar = document.getElementById('mcbar'); if (!bar) return;
+  const list = MC_CLIPS[tab];
+  if (!list) { bar.hidden = true; bar.innerHTML = ''; mcStop(); return; }
+  bar.hidden = false;
+  bar.innerHTML = '<span class="mclabel">🎤 MC 음성</span>' + list.concat([['21', '비상 멘트']]).map(([k, t]) =>
+    `<button type="button" data-mc="${k}" class="${k === '21' ? 'sos' : ''}${McVoice.key === k ? ' on' : ''}">${McVoice.key === k ? '■ ' : '▶ '}${t}</button>`).join('');
+}
+document.getElementById('mcbar').addEventListener('click', e => {
+  const b = e.target.closest('button[data-mc]'); if (!b) return;
+  const k = b.dataset.mc, playing = McVoice.key === k;
+  mcStop();
+  if (!playing) {
+    if (!McVoice.el) { McVoice.el = new Audio(); McVoice.el.addEventListener('ended', () => { McVoice.key = null; renderMcBar(currentTab()); }); }
+    McVoice.el.src = 'audio/' + k + '.mp3'; McVoice.key = k;
+    const pr = McVoice.el.play();
+    if (pr && pr.catch) pr.catch(() => { McVoice.key = null; renderMcBar(currentTab()); if (typeof toast === 'function') toast('음성을 재생하지 못했습니다'); });
+  }
+  renderMcBar(currentTab());
+});
+
+/* 세부 URL: playjc.co.kr/#round1 또는 playjc.co.kr/round1/ (폴더 → 해시로 넘김) */
+const ROUTES = { intro: 'p-intro', players: 'p-part', groups: 'p-draw', round1: 'p-r1', placement: 'p-place', round2: 'p-r2', awards: 'p-award', fines: 'p-fine', settings: 'p-data' };
+const ROUTE_OF = Object.fromEntries(Object.entries(ROUTES).map(([k, v]) => [v, k]));
+function routeTab(){ const h = (location.hash || '').replace(/^#/, ''); return ROUTES[h] || null; }
+function setRoute(id){ const r = ROUTE_OF[id]; if (!r || SELFTEST) return; if (location.hash !== '#' + r) { try { history.replaceState(null, '', '#' + r); } catch (e) {} } }
+window.addEventListener('hashchange', () => { const t = routeTab(); if (t && !$('section#' + t).classList.contains('active')) showTab(t); });
 function showTab(id){
+  renderMcBar(id);
+  setRoute(id);
   $$('section.panel').forEach(s => s.classList.toggle('active', s.id === id));
   $$('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   onTabShown(id);
@@ -1705,6 +1785,8 @@ async function runSelfTest(mode){
       const sizes = DrawCore.groupSizes(n).sizes;
       ok('r1_matches', !!ev0 && ev0.total === sizes.reduce((s, z) => s + (z === 6 ? 6 : 5), 0) && ev0.matches.every(m => m.court === m.g), ev0 && ev0.total);
       ok('r1_times', ev0.matches.filter(m => m.round === 3).every(m => m.time === '07:26'));
+      ok('r1_group_table_default', ui.r1.view === 'group' && $$('#p-r1 .gbox').length === sizes.length && $$('#p-r1 tr[data-act="pad"]').length === ev0.total);
+      ui.r1.view = 'round'; renderHalf('r1');
       ok('r1_cards_rendered', $$('#p-r1 .mcard').length === ev0.total);
       // 패드 입력(UI 클릭): 1-1 → 21:15
       const card = () => $('#p-r1 .mcard[data-id="1-1"]');
@@ -1938,7 +2020,7 @@ async function runSelfTest(mode){
    =================================================================== */
 const B = BracketCore;
 const UNDO_KEY = 'uddt_undo_v1';
-const ui = { r1: { sub: 'match', view: 'round' }, r2: { sub: 'match', view: 'round' } };
+const ui = { r1: { sub: 'match', view: 'group' }, r2: { sub: 'match', view: 'group' } };
 const stamped = new Set();          // 꼴찌 도장 애니메이션 1회만
 const HALF_LABEL = { r1: '전반전', r2: '후반전' };
 
@@ -2154,8 +2236,33 @@ function demoFill(which){
 
 /* ---------- 전반전·후반전 화면 ---------- */
 function signed(n){ return n > 0 ? '+' + n : String(n); }
+function teamCell(nm, arr){ return arr.map(no => `<span>${esc(nm.get(no) || '?')}</span>`).join(''); }
 function teamNames(nm, arr){ return arr.map(no => esc(nm.get(no) || '?')).join(' · '); }
 function nextMatchIds(ev, scores){ const ids = new Set(); ev.groups.forEach(g => { const m = ev.matches.find(x => x.g === g.no && !B.hasScore(scores[x.id])); if (m) ids.add(m.id); }); return ids; }
+
+/* 조별 대진표 — 엑셀 대진표처럼 조마다 경기 순서표 + 현재 순위 */
+function groupBracketHtml(which, ev, h, nm, editable, nexts){
+  return '<div class="gbgrid">' + ev.groups.map(g => {
+    const ms = ev.matches.filter(m => m.g === g.no);
+    const done = ms.filter(m => B.hasScore(h.scores[m.id])).length;
+    const color = GROUP_COLORS[(g.no - 1) % 5];
+    const rows = ms.map(m => {
+      const s = h.scores[m.id], has = B.hasScore(s), aw = has && s.a > s.b, bw = has && s.b > s.a, nx = nexts.has(m.id);
+      const sc = has ? `<b class="${aw ? 'w' : ''}">${s.a}</b><i>:</i><b class="${bw ? 'w' : ''}">${s.b}</b>` : `<span class="todo">${editable ? '입력' : '-'}</span>`;
+      return `<tr class="${has ? 'done' : ''} ${nx ? 'next' : ''} ${editable ? 'click' : ''}" ${editable ? `role="button" tabindex="0" data-act="pad" data-id="${m.id}"` : ''}>
+        <td class="k">${m.k}${nx ? '<span class="now">지금</span>' : ''}</td><td class="t">${m.time}</td>
+        <td class="ta ${aw ? 'win' : bw ? 'lose' : ''}">${teamCell(nm, m.a)}</td><td class="sc">${sc}</td><td class="tb ${bw ? 'win' : aw ? 'lose' : ''}">${teamCell(nm, m.b)}</td></tr>`;
+    }).join('');
+    const rank = g.rank.order.map((no, i) => { const x = g.byNo.get(no); const last = g.complete && g.last === no;
+      return `<tr class="${last ? 'last' : ''}"><td>${i + 1}</td><td class="nm">${esc(x.name)}${last ? ' <span class="badge red">꼴찌 5천원</span>' : ''}</td><td>${x.w}</td><td>${x.l}</td><td>${x.diff > 0 ? '+' : ''}${x.diff}</td></tr>`; }).join('');
+    return `<section class="gbox" style="--gc:${color}">
+      <header><h3>${g.no}조</h3><span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · ${done}/${ms.length}경기</span></header>
+      <div class="gmembers">${g.members.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>
+      <div class="gbscroll"><table class="gb"><thead><tr><th>경기</th><th>시각</th><th>A팀</th><th>점수</th><th>B팀</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <table class="gr"><thead><tr><th>순위</th><th>이름</th><th>승</th><th>패</th><th>득실</th></tr></thead><tbody>${rank}</tbody></table>
+    </section>`;
+  }).join('') + '</div>';
+}
 function matchCardHtml(m, s, nm, locked, isNext){
   const has = B.hasScore(s), aw = has && s.a > s.b, bw = has && s.b > s.a;
   return `<div class="mcard ${has ? '' : 'todo'} ${locked ? 'locked' : ''} ${isNext ? 'next' : ''}" role="button" tabindex="0" data-act="pad" data-id="${m.id}">
@@ -2202,7 +2309,7 @@ function renderHalf(which){
   const b = state.bracket, h = b[which], label = HALF_LABEL[which];
   if (!h) {
     el.innerHTML = which === 'r1'
-      ? `<div class="box"><h2>${label} 경기표</h2><p class="notice">2. 추첨에서 결과를 <b>확정(잠금)</b>하면 전반전 경기표가 자동으로 만들어집니다(엑셀 복식 로테이션 그대로).</p><button class="primary" data-act="go" data-tab="p-draw">추첨 화면으로</button></div>`
+      ? `<div class="box"><h2>${label} 경기표</h2><p class="notice">2. 조편성에서 추첨 결과를 <b>확정(잠금)</b>하면 전반전 경기표가 자동으로 만들어집니다(엑셀 복식 로테이션 그대로).</p><button class="primary" data-act="go" data-tab="p-draw">추첨 화면으로</button></div>`
       : `<div class="box"><h2>${label} 경기표</h2><p class="notice">4. 후반전 배치를 확정하면 후반전 경기표가 만들어집니다.</p><button class="primary" data-act="go" data-tab="p-place">후반전 배치로</button></div>`;
     return;
   }
@@ -2214,7 +2321,7 @@ function renderHalf(which){
   const pct = Math.round(ev.done / ev.total * 100);
   const sub = (k, t) => `<button class="${u.sub === k ? 'on' : ''}" data-act="sub" data-sub="${k}">${t}</button>`;
   let tools = `<div class="rtools"><div class="subtabs">${sub('match', '📝 경기·점수')}${sub('rank', '🏅 순위')}${sub('call', '📣 호출판')}${sub('board', '📊 순위판')}</div>`;
-  if (u.sub === 'match') tools += `<div class="subtabs">${['round', 'group'].map(v => `<button class="${u.view === v ? 'on' : ''}" data-act="view" data-view="${v}">${v === 'round' ? '라운드별' : '조별'}</button>`).join('')}</div>`;
+  if (u.sub === 'match') tools += `<div class="subtabs">${['group', 'round'].map(v => `<button class="${u.view === v ? 'on' : ''}" data-act="view" data-view="${v}">${v === 'round' ? '라운드별' : '조별 대진표'}</button>`).join('')}</div>`;
   tools += `<span class="prog"><span class="bar"><i style="width:${pct}%"></i></span><b>${ev.done}/${ev.total}</b>경기</span>`;
   if (ev.unresolved) tools += `<span class="badge tie">동률 ${ev.unresolved}건</span>`;
   tools += '<span class="spacer"></span>';
@@ -2235,12 +2342,9 @@ function renderHalf(which){
         body += `<div class="rblock"><h3>R${r} <small>${ms[0].time}${idle.length ? ` · 휴식 코트: ${idle.join(', ')}` : ''}</small></h3><div class="mgrid">${ms.map(m => matchCardHtml(m, h.scores[m.id], nm, !editable, nexts.has(m.id))).join('')}</div></div>`;
       }
     } else {
-      for (const g of ev.groups) {
-        const ms = ev.matches.filter(m => m.g === g.no);
-        body += `<div class="rblock"><h3>${g.no}조 <small>${ms[0].court}코트 · ${g.members.map(m => esc(m.name)).join(', ')}</small></h3><div class="mgrid">${ms.map(m => matchCardHtml(m, h.scores[m.id], nm, !editable, nexts.has(m.id))).join('')}</div></div>`;
-      }
+      body += groupBracketHtml(which, ev, h, nm, editable, nexts);
     }
-    body += '<p class="muted small">경기 카드를 누르면 숫자 패드가 열립니다. 동점은 엑셀과 같이 승패 미집계(득실만 반영). 순위 = 승률 → 득실차 → (입력된 경우) 나이 — 화면에는 승·패·득실만 표시합니다.</p>';
+    body += '<p class="muted small">경기 줄(라운드별 보기는 카드)을 누르면 숫자 패드가 열립니다. 동점은 엑셀과 같이 승패 미집계(득실만 반영). 순위 = 승률 → 득실차 → (입력된 경우) 나이 — 화면에는 승·패·득실만 표시합니다.</p>';
   } else if (u.sub === 'rank' || u.sub === 'board') {
     body += (u.sub === 'board' ? `<h2>📊 ${label} 실시간 순위</h2>` : '') + rankCardsHtml(which, ev, editable && u.sub === 'rank');
     if (u.sub === 'rank') body += '<p class="muted small">각 조 꼴찌 벌금 5천원(전반·후반 전부). 완전 동률(승·패·득실·나이 모두 같음)은 「동률!」 — 조 경기가 모두 끝나면 동전 던지기 또는 직접 지정으로 정하고, 결정 기록이 남습니다.</p>';
@@ -2265,7 +2369,7 @@ function halfClick(which, e){
 }
 ['r1', 'r2'].forEach(w => {
   $('#p-' + w).addEventListener('click', e => halfClick(w, e));
-  $('#p-' + w).addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.mcard')) { e.preventDefault(); openPad(w, e.target.dataset.id); } });
+  $('#p-' + w).addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.mcard, tr[data-act="pad"]')) { e.preventDefault(); openPad(w, e.target.dataset.id); } });
 });
 
 /* ---------- 숫자 패드 ---------- */
@@ -2672,7 +2776,7 @@ $('#btnDemo').addEventListener('click', () => {
   pushUndo('데모 데이터 전');
   const rng = DrawCore.makeRng(DrawCore.newSeed());
   setParticipants(demoNames(n, rng).map(name => ({ name, age: 25 + rng.int(35) })));
-  state.demo = true; save(); renderAll(); toast(`데모 가명 ${n}명 — 2. 추첨 → 확정 → 3. 전반전에서 「데모: 남은 점수 채우기」`);
+  state.demo = true; save(); renderAll(); toast(`데모 가명 ${n}명 — 2. 조편성 → 확정 → 3. 전반전에서 「데모: 남은 점수 채우기」`);
 });
 
 function renderStage2(){
@@ -2773,6 +2877,7 @@ if (DEMO === '2') {
   renderAll();
   let entered = false; try { entered = !!sessionStorage.getItem('uddt_entered'); } catch (e) {}
   if (qs.get('tab')) showTab(qs.get('tab'));
+  else if (!SELFTEST && routeTab()) showTab(routeTab());
   else if (!SELFTEST && !entered) showTab('p-intro');
   else if (!state.participants.length) showTab('p-part');
   else if (!SELFTEST) showTab(currentStageTab());
