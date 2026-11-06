@@ -249,6 +249,31 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
   check('후반전 1조 「상금 조」 표시', await ev(`/상금 조/.test((document.querySelector('#p-r2 .gbox header')||{}).textContent||'')`));
   const e1 = g1.map(g => g[g.length - 1].name), e2 = g2.map(g => g[g.length - 1].name);
   check('꼴찌 5천원 표시(전반 5·후반 5) = 독립 계산', JSON.stringify(L1) === JSON.stringify(e1) && JSON.stringify(L2) === JSON.stringify(e2), `전반 ${L1.join(',')} / 후반 ${L2.join(',')}`);
+  // 개인 결과(전반·후반): 사람마다 승패·득실·후반전 조·급수 = 독립 계산, 이름 검색
+  for (const [w, G, label] of [['r1', g1, '전반전'], ['r2', g2, '후반전']]) {
+    await tab('p-' + w); await click(`#p-${w} [data-act="sub"][data-sub="person"]`); await sleep(200);
+    await shot(`${w}_person`);
+    const prow = await ev(`[...document.querySelectorAll('#p-${w} tr.prow')].map(tr=>({name:tr.dataset.name, cells:[...tr.children].map(td=>td.textContent.replace(/꼴찌 5천원|꼴찌/g,'').trim()), games:tr.querySelectorAll('.pg').length}))`);
+    const flat = G.flat(); let bad = 0;
+    for (const x of flat) { const r = prow.find(y => y.name === x.name); if (!r || r.cells[2] !== `${x.w}승 ${x.l}패` || r.cells[5] !== `${x.diff > 0 ? '+' : ''}${x.diff}` || r.games !== 4) { bad++; if (bad <= 3) log('     개인 불일치', x.name, JSON.stringify(r && r.cells.slice(0, 6))); } }
+    check(`${label} 개인 결과 ${N}명: 승·패·득실·경기 4개 = 독립 계산`, prow.length === N && bad === 0, `불일치 ${bad}`);
+    if (w === 'r1') {
+      const nextOk = flat.every(x => { const r = prow.find(y => y.name === x.name); const gi = exp.findIndex(arr => arr.includes(x.no)); return r && r.cells[6] === `${gi + 1}조`; });
+      check('전반전 개인 결과의 「후반전 조」 = 배치 독립 계산', nextOk || dupe1, dupe1 ? '전반 완전 동률 — 참고' : '');
+    } else {
+      const grOk = fin.every(x => { const r = prow.find(y => y.name === x.name); return r && r.cells[7] === grade(x.overall) && (r.cells[8] || '') === (prize(x) || ''); });
+      check('후반전 개인 결과의 급수·상품 = 독립 계산', grOk);
+    }
+    const one = flat[3].name;
+    await ev(`(()=>{const i=document.getElementById('psearch-${w}'); i.value=${JSON.stringify(one)}; i.dispatchEvent(new Event('input',{bubbles:true})); return true})()`);
+    const vis = await ev(`[...document.querySelectorAll('#p-${w} tr.prow')].filter(r=>!r.hidden).map(r=>r.dataset.name)`);
+    check(`${label} 개인 결과 이름 검색`, vis.length === 1 && vis[0] === one, vis.join(','));
+    await ev(`(()=>{const i=document.getElementById('psearch-${w}'); i.value=''; i.dispatchEvent(new Event('input',{bubbles:true})); return true})()`);
+    await click(`#p-${w} [data-act="sub"][data-sub="match"]`);
+  }
+  await tab('p-award');
+  const firstCol = await ev(`[...document.querySelectorAll('#awardBody table.final tbody tr')].map(tr=>tr.children[6] ? tr.children[6].textContent.trim() : '')`);
+  check('시상 최종 표에 전반 결과(조·순위·승패·득실) 표시', firstCol.length === N && firstCol.every(t => /^\d조 \d위 · \d승\d패/.test(t)), firstCol[0]);
   // MC 음성(시상)
   await tab('p-award');
   const mcIds = await ev(`[...document.querySelectorAll('#mcbar button')].map(b=>b.dataset.mc).join(',')`);
