@@ -301,19 +301,21 @@ button.huge{font-size:1.5rem;padding:16px 28px;min-height:64px}
 #printArea h1{margin:2px 0 0;font-size:24pt;color:#000}
 #printArea .pcourt{font-size:30pt;font-weight:900;line-height:1;border:3px solid #000;border-radius:8px;padding:4px 12px;text-align:center}
 #printArea .pcourt small{display:block;font-size:10pt;font-weight:700}
-#printArea .pmeta{margin:6px 0 8px;font-size:11pt}
-#printArea table{width:100%;border-collapse:collapse;margin-top:8px;break-inside:avoid}
-#printArea th,#printArea td{border:1px solid #000;padding:7px 6px;font-size:12.5pt;color:#000;background:#fff}
-#printArea th{background:#e8e8e8;font-size:10.5pt}
+#printArea .pmeta{margin:6px 0 6px;font-size:11pt}
+#printArea .pmem{display:grid;grid-template-columns:repeat(auto-fill,minmax(44mm,1fr));gap:2mm;margin:3mm 0 4mm}
+#printArea .pm1{display:flex;align-items:center;gap:2.5mm;border:1.2px solid #000;border-radius:2mm;padding:1.6mm 3mm;font-size:13pt;font-weight:700}
+#printArea .pm1 b{display:inline-flex;align-items:center;justify-content:center;width:6.5mm;height:6.5mm;border-radius:50%;background:#000;color:#fff;font-size:10pt}
+#printArea table{width:100%;border-collapse:collapse;table-layout:fixed;break-inside:avoid}
+#printArea th,#printArea td{border:1.2px solid #000;padding:2mm 3mm;color:#000;background:#fff}
+#printArea th{background:#e8e8e8;font-size:11pt;height:9mm}
 #printArea td.c{text-align:center;white-space:nowrap}
-#printArea td.tm{font-weight:700}
-#printArea td.sc i{font-style:normal;margin:0 4px;font-weight:800}
-#printArea td.sc b{font-size:15pt}
-#printArea .sbox{display:inline-block;width:15mm;height:9mm;border:1.6px solid #000;border-radius:3px;vertical-align:middle}
-#printArea td.sign{width:18mm}
-#printArea table.pr{margin-top:14px}
-#printArea table.pr td.nm{font-weight:700}
-#printArea .pfoot{margin-top:8px;font-size:9pt;color:#333}
+#printArea td.k{font-size:16pt;font-weight:900}
+#printArea td.tm{font-size:16pt;font-weight:800;text-align:center}
+#printArea td.tm i{font-style:normal;margin:0 2mm;color:#555}
+#printArea td.sc i{font-style:normal;margin:0 2mm;font-weight:900;font-size:16pt}
+#printArea td.sc b{font-size:20pt}
+#printArea .sbox{display:inline-block;width:16mm;height:12mm;border:1.8px solid #000;border-radius:2mm;vertical-align:middle}
+#printArea .pfoot{margin-top:3mm;font-size:9pt;color:#333}
 .gmembers{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .gmembers span{font-size:.85rem;padding:2px 8px;border-radius:999px;background:var(--card2)}
 .gbscroll{overflow-x:auto}
@@ -1213,6 +1215,7 @@ function normalizeState(s){
   d.draw = (s.draw && Array.isArray(s.draw.groups)) ? s.draw : null;
   d.history = Array.isArray(s.history) ? s.history.slice(0, 10) : [];
   d.settings = Object.assign(d.settings, s.settings || {});
+  if (!s.settings || s.settings.placeVer !== 3) { d.settings.placeMode = 'rank'; d.settings.placeVer = 3; }   // 11/7 이전 저장값(엑셀·포스터) → 순위별(대표 지시)
   if (!['slot','capsule','roulette'].includes(d.settings.effect)) d.settings.effect = 'slot';
   Object.assign(d.settings, normSettings2(d.settings));   // 2단계 설정 검증
   d.bracket = normBracket(s.bracket);                       // 2단계 대진·점수·배치·벌금
@@ -2180,7 +2183,7 @@ const stamped = new Set();          // 꼴찌 도장 애니메이션 1회만
 const HALF_LABEL = { r1: '전반전', r2: '후반전' };
 
 function defaultBracket(){ return { r1: null, place: null, r2: null, placeTies: {}, fines: { marks: {} } }; }
-function defaultSettings2(){ return { poster: 'A', r1Start: '07:00', r2Start: '08:25', roundMin: 13, target: 21, courts: [1, 2, 3, 4, 5], placeMode: 'rank', placeVer: 2, gradeMode: 'poster' }; }
+function defaultSettings2(){ return { poster: 'A', r1Start: '07:00', r2Start: '08:25', roundMin: 13, target: 21, courts: [1, 2, 3, 4, 5], placeMode: 'rank', placeVer: 3, gradeMode: 'poster' }; }
 function normScores(o){
   const out = {};
   if (o && typeof o === 'object') for (const [id, s] of Object.entries(o)) {
@@ -2222,7 +2225,7 @@ function normSettings2(st){
   if (+st.roundMin >= 5 && +st.roundMin <= 40) d.roundMin = +st.roundMin;
   if ([15, 21, 25].includes(+st.target)) d.target = +st.target;
   if (Array.isArray(st.courts) && st.courts.length === 5 && st.courts.every(c => +c >= 1 && +c <= 20)) d.courts = st.courts.map(Number);
-  if (st.placeVer === 2 && ['excel', 'poster', 'rank'].includes(st.placeMode)) d.placeMode = st.placeMode;   // 11/7 이전 저장값은 순위별로 전환
+  if (st.placeVer === 3 && ['excel', 'poster', 'rank'].includes(st.placeMode)) d.placeMode = st.placeMode;   // 11/7 이전 저장값은 순위별로 전환
   if (['excel', 'poster'].includes(st.gradeMode)) d.gradeMode = st.gradeMode;
   return d;
 }
@@ -2438,17 +2441,17 @@ function personResultsHtml(which, ev, h){
 /* ---------- 대진표 출력 — 조마다 A4 한 장(흑백), 점수 칸은 손으로 적게 비워 둠 ---------- */
 function printSheetHtml(which, ev, h, nm, g){
   const ms = ev.matches.filter(m => m.g === g.no), court = ms[0] ? ms[0].court : g.no;
-  const any = ms.some(m => B.hasScore(h.scores[m.id]));
-  const tm = ids => ids.map(p => esc(nm.get(p) || '?')).join(' · ');
+  // 대표 11/7: 승·패·득실·순위 칸과 시각 열 없음. 명단은 위에 한 줄 띠, 경기표는 경기 수에 맞춰 줄 높이를 키워 A4 한 장을 채움
+  const tm = ids => ids.map(p => `<span>${esc(nm.get(p) || '?')}</span>`).join('<i>·</i>');
+  const rowH = Math.max(15, Math.min(24, Math.floor(178 / Math.max(1, ms.length))));   // mm: 5경기 24 · 6경기 24 · 8경기 22 · 10경기 17
   const rows = ms.map(m => { const s = h.scores[m.id], has = B.hasScore(s);
-    return `<tr><td class="c">${m.k}</td><td class="c">${m.time}</td><td class="tm">${tm(m.a)}</td><td class="c sc">${has ? `<b>${s.a}</b>` : '<span class="sbox"></span>'}<i>:</i>${has ? `<b>${s.b}</b>` : '<span class="sbox"></span>'}</td><td class="tm">${tm(m.b)}</td><td class="sign"></td></tr>`; }).join('');
-  const mem = g.members.map((m, i) => { const x = g.byNo.get(m.no), r = g.rank.order.indexOf(m.no) + 1;
-    return `<tr><td class="c">${i + 1}</td><td class="nm">${esc(m.name)}</td><td class="c">${any ? x.w : ''}</td><td class="c">${any ? x.l : ''}</td><td class="c">${any ? (x.diff > 0 ? '+' : '') + x.diff : ''}</td><td class="c">${g.complete && !g.rank.ties.length ? r : ''}</td></tr>`; }).join('');
+    return `<tr style="height:${rowH}mm"><td class="c k">${m.k}</td><td class="tm">${tm(m.a)}</td><td class="c sc">${has ? `<b>${s.a}</b>` : '<span class="sbox"></span>'}<i>:</i>${has ? `<b>${s.b}</b>` : '<span class="sbox"></span>'}</td><td class="tm">${tm(m.b)}</td><td class="sign"></td></tr>`; }).join('');
+  const mem = g.members.map((m, i) => `<span class="pm1"><b>${i + 1}</b><span class="nm">${esc(m.name)}</span></span>`).join('');
   return `<section class="psheet"><div class="phead"><div><div class="pev">우당탕탕 자체대회 · 2026.11.14(토)</div><h1>${HALF_LABEL[which]} ${g.no}조 대진표</h1></div><div class="pcourt">${court}<small>코트</small></div></div>
-    <div class="pmeta">${g.members.length}명 · ${ms.length}경기 · 첫 경기 ${ms[0] ? ms[0].time : ''} · ${state.settings.target}점 단판${which === 'r2' && g.no === 1 ? ' · 🏆 상금 조(1등 20만·2등 10만·3등 5만)' : which === 'r2' ? ' · 1등 3만원' : ''}</div>
-    <table class="pm"><thead><tr><th>경기</th><th>시각</th><th>A팀</th><th>점수</th><th>B팀</th><th>확인</th></tr></thead><tbody>${rows}</tbody></table>
-    <table class="pr"><thead><tr><th>번호</th><th>이름</th><th>승</th><th>패</th><th>득실</th><th>순위</th></tr></thead><tbody>${mem}</tbody></table>
-    <p class="pfoot">순위: 승률 → 득실차 → 나이 · 꼴찌 벌금 5천원 · 점수 입력 playjc.co.kr/#${which === 'r1' ? 'round1' : 'round2'} · 출력 ${new Date().toLocaleString('ko-KR', { hour12: false })}</p></section>`;
+    <div class="pmeta">${g.members.length}명 · ${ms.length}경기 · ${state.settings.target}점 단판${which === 'r2' && g.no === 1 ? ' · 🏆 상금 조(1등 20만·2등 10만·3등 5만)' : which === 'r2' ? ' · 1등 3만원' : ''}</div>
+    <div class="pmem">${mem}</div>
+    <table class="pm"><colgroup><col style="width:13mm"><col><col style="width:46mm"><col><col style="width:17mm"></colgroup><thead><tr><th>경기</th><th>A팀</th><th>점수</th><th>B팀</th><th>확인</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="pfoot">꼴찌 벌금 5천원 · 점수 입력 playjc.co.kr/#${which === 'r1' ? 'round1' : 'round2'} · 출력 ${new Date().toLocaleString('ko-KR', { hour12: false })}</p></section>`;
 }
 function printGroups(which, gnos){
   const h = state.bracket[which], ev = h && evalHalf(which);

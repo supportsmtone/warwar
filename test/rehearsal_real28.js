@@ -115,8 +115,8 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
     const want = await ev(`(()=>{const st=${S}, h=st.bracket.${which}, nm=new Map(st.participants.map(p=>[p.no,p.name])); return h.groups.map(g=>({no:g.no,n:g.members.length,names:g.members.map(m=>nm.get(m.no))}))})()`);
     for (const g of want) {
       await click(`#p-${which} .gbox [data-act="print"][data-g="${g.no}"]`); await sleep(150);
-      const got = await ev(`(()=>{const sh=document.querySelectorAll('#printArea .psheet'); const s=sh[0]; return {sheets:sh.length, printing:document.body.classList.contains('printing'), printed:window.__printed, title:s?s.querySelector('h1').textContent:'', rows:s?s.querySelectorAll('table.pm tbody tr').length:0, names:s?[...s.querySelectorAll('table.pr td.nm')].map(td=>td.textContent):[], mtxt:s?s.querySelector('table.pm').textContent:''}})()`);
-      const nameOk = JSON.stringify(got.names) === JSON.stringify(g.names) && g.names.every(n => got.mtxt.includes(n));
+      const got = await ev(`(()=>{const sh=document.querySelectorAll('#printArea .psheet'); const s=sh[0]; return {sheets:sh.length, printing:document.body.classList.contains('printing'), printed:window.__printed, title:s?s.querySelector('h1').textContent:'', rows:s?s.querySelectorAll('table.pm tbody tr').length:0, names:s?[...s.querySelectorAll(".pmem .nm")].map(td=>td.textContent):[], mtxt:s?s.querySelector('table.pm').textContent:'', heads:s?[...s.querySelectorAll('th')].map(th=>th.textContent).join(','):'', fit:s?s.getBoundingClientRect().height:0}})()`);
+      const nameOk = JSON.stringify(got.names) === JSON.stringify(g.names) && g.names.every(n => got.mtxt.includes(n)) && got.heads === '경기,A팀,점수,B팀,확인';
       const tplLen = (await ev(`BracketCore.TEMPLATES[${g.n}].length`));
       if (!(got.sheets === 1 && got.printing && got.printed >= 1 && got.title === `${label} ${g.no}조 대진표` && got.rows === tplLen && nameOk)) check(`${label} ${g.no}조 출력 내용`, false, JSON.stringify(got).slice(0, 200));
       await ev(`window.dispatchEvent(new Event('afterprint')); true`);
