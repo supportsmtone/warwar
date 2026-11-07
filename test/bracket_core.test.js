@@ -220,11 +220,11 @@ function runFlow(n, seed, placeMode, gradeMode){
 }
 
 for (const n of [28, 27, 25, 30]) {
-  test(`전체 흐름 시뮬 ${n}명 × ${SIM_RUNS}회 × (배치 순위별/엑셀/포스터 교대, 급수 포스터/엑셀 교대): 오류 0·전원 급수 1개·조 크기 보존`, () => {
+  test(`전체 흐름 시뮬 ${n}명 × ${SIM_RUNS}회 × (배치 전체성적순/순위별/엑셀/포스터 교대, 급수 포스터/엑셀 교대): 오류 0·전원 급수 1개·조 크기 보존`, () => {
     let errors = 0, ties1 = 0, tiesP = 0;
     const gradeCount = {};
     for (let i = 0; i < SIM_RUNS; i++) {
-      const placeMode = ['rank', 'excel', 'poster'][i % 3], gradeMode = i % 4 < 2 ? 'poster' : 'excel';
+      const placeMode = ['overall', 'rank', 'excel', 'poster'][i % 4], gradeMode = i % 4 < 2 ? 'poster' : 'excel';
       let f;
       try { f = runFlow(n, n * 100000 + i, placeMode, gradeMode); } catch (e) { errors++; if (errors < 3) console.error(e); continue; }
       const { people, ev1, pl, ev2, res, sizes } = f;
@@ -249,7 +249,16 @@ for (const n of [28, 27, 25, 30]) {
       if (placeMode === 'excel') {
         const winners = ev1.groups.map(g => g.rank.order[0]).sort((a, b) => a - b);
         assert.deepEqual(pl.groups[0].members.slice(0, 5).map(m => m.no).sort((a, b) => a - b), winners);   // 각 조 1위 → 1조
-      } else {
+      } else if (placeMode === 'overall') {
+        // 전체 개인 성적순: 앞 조의 최저 점수 ≥ 다음 조의 최고 점수, 조 안 자리 = 점수 내림차순, 같은 전반 조끼리는 전반 순위 유지
+        const sc = new Map(); ev1.groups.forEach(g => g.rank.order.forEach((no, k) => sc.set(no, { s: g.byNo.get(no).score, g: g.no, r: k + 1 })));
+        const flat = pl.groups.flatMap(g => g.members.map(m => m.no));
+        for (let k = 1; k < flat.length; k++) {
+          const a = sc.get(flat[k - 1]), b = sc.get(flat[k]);
+          assert.ok(a.s >= b.s, `전체 성적순 ${k}번째 점수 역전`);
+          if (a.s === b.s && a.g === b.g) assert.ok(a.r < b.r, '같은 전반 조 같은 점수는 전반 순위 유지');
+        }
+      } else if (placeMode === 'poster') {
         // 포스터: r위는 r조 또는 넘침 보정으로 인접 조(뒤로 밀림만, 앞당김 없음)
         for (const g of pl.groups) for (const m of g.members) assert.ok(g.no >= Math.min(m.fromRank, 5) - 1 && g.no <= m.fromRank + 1, `포스터 배치 ${m.fromRank}위→${g.no}조`);
       }

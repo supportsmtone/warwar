@@ -203,7 +203,7 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
 
   await tab('p-place');
   check('주소 #placement', await ev('location.hash') === '#placement');
-  check('배치 방식 = 순위별(각 조 1위→1조, 2위→2조 …)', await ev(`${S}.settings.placeMode`) === 'rank');
+  check('배치 방식 = 전체 개인 성적순(6·6·6·5·5)', await ev(`${S}.settings.placeMode`) === 'overall');
   await ev(`window.__spoken=new Set(); window.__ob && window.__ob.disconnect(); window.__ob=new MutationObserver(ms=>ms.forEach(m=>{ const t=m.target; if(t.classList&&t.classList.contains('speaking')&&t.dataset.no) window.__spoken.add(t.dataset.no) })); window.__ob.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']}); true`);
   let pt = 0;
   while (await ev(`!!document.querySelector('#placeMsg [data-act="coin"]')`) && pt < 10) { pt++;
@@ -255,10 +255,15 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   }
   const g1 = standings(st.bracket.r1.groups, st.bracket.r1.scores, 'r1');
   const dupe1 = g1.some(g => g.some((p, i) => i && Math.abs(p.score - g[i - 1].score) < 1e-9));
-  // 순위별: r위 → r조(1~4조), 5위 이하 → 5조
-  const exp = [0, 1, 2, 3, 4].map(gi => g1.flatMap(g => g.filter((p, i) => gi < 4 ? i === gi : i >= 4)).map(p => p.no).sort((a, b) => a - b));
+  // 전체 개인 성적순: 28명 전원 점수 내림차순 → 위에서부터 SIZES(6·6·6·5·5) 로 자름. 완전히 같은 점수만 화면(동전) 순서를 따른다
+  const appFlat = st.bracket.r2.groups.flatMap(g => g.members.map(m => m.no));
+  const allP = g1.flat().sort((a, b) => (Math.abs(b.score - a.score) > 1e-9 ? b.score - a.score : appFlat.indexOf(a.no) - appFlat.indexOf(b.no)));
+  const samePlace = allP.some((p, i) => i && Math.abs(p.score - allP[i - 1].score) < 1e-9);
+  let k0 = 0; const exp = SIZES.map(s => allP.slice(k0, k0 += s).map(p => p.no).sort((a, b) => a - b));
   const app = st.bracket.r2.groups.map(g => g.members.map(m => m.no).sort((a, b) => a - b));
-  check(`후반전 배치 = 독립 계산(순위별, ${app.map(g => g.length).join('·')}명)`, JSON.stringify(exp) === JSON.stringify(app) && JSON.stringify(app.map(g => g.length)) === JSON.stringify(N === 28 ? [5, 5, 5, 5, 8] : [5, 5, 5, 5, 7]), dupe1 ? '전반 완전 동률은 화면 동전 순서 적용' : '');
+  check(`후반전 배치 = 독립 계산(전체 개인 성적순, ${app.map(g => g.length).join('·')}명)`, JSON.stringify(exp) === JSON.stringify(app) && JSON.stringify(app.map(g => g.length)) === JSON.stringify(SIZES), samePlace ? '같은 점수는 화면 동전 순서 적용' : '');
+  const seatOk = st.bracket.r2.groups.every(g => g.members.every((m, i) => i === 0 || allP.findIndex(p => p.no === g.members[i - 1].no) < allP.findIndex(p => p.no === m.no)));
+  check('후반전 조 안 자리 순서 = 성적순', seatOk);
   const g2 = standings(st.bracket.r2.groups, st.bracket.r2.scores, 'r2');
   if (coinTies) log(`   (완전 동률 비교 ${coinTies}회 — 동전 결정 순서 적용)`);
   const fin = []; g2.forEach((g, gi) => g.forEach((p, i) => fin.push({ name: p.name, group: gi + 1, rank: i + 1, overall: fin.length + 1 })));

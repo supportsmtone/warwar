@@ -647,7 +647,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <section class="panel" id="p-place">
   <div class="rtools">
     <div class="chips" id="placeModeChips" role="radiogroup" aria-label="배치 방식">
-      <label><input type="radio" name="placeMode" value="rank">순위별(각 조 1위→1조, 2위→2조 …)</label>
+      <label><input type="radio" name="placeMode" value="overall">전체 개인 성적순(6·6·6·5·5)</label>
       <label><input type="radio" name="placeMode" value="excel">엑셀 방식(각 조 1위→1조 + 점수순)</label>
       <label><input type="radio" name="placeMode" value="poster">포스터 방식(각 조 순위→조)</label>
     </div>
@@ -1048,6 +1048,8 @@ const BracketCore = (function(){
      mode 'poster': 각 조 r위 → r조, 조 크기에 맞춰 (순위, 점수) 순으로 넘침 보정
      mode 'rank'  : (기본·대표 지시 11/7) 각 조 1위만 1조, 2위만 2조, 3위만 3조 … — 조 크기는 그 순위 인원 수.
                     조 수(5)보다 아래 순위와 4명 이하로 남는 순위(복식 불가)는 마지막 조에 합친다(예: 28명 → 5·5·5·5·8).
+     mode 'overall': (기본·대표 지시 11/7 11시) 조 구분 없이 전반전 개인 성적(승률×1000+득실차+나이×0.03) 순으로
+                    1조부터 채운다. 조 크기는 1단계와 같은 블록(28명 6·6·6·5·5). 같은 점수가 조 경계에 걸리면 동전/직접.
      sizes: 후반전 조 크기(1단계 규칙과 같은 총원 블록). decisions: 경계 동률 결정. */
   function placement(evalHalf, mode, sizes, decisions){
     const entries = [];
@@ -1067,6 +1069,8 @@ const BracketCore = (function(){
     let segments;
     if (mode === 'poster') {
       segments = [entries.slice().sort((a, b) => (a.fromRank - b.fromRank) || (b.score - a.score) || (a.fromG - b.fromG))];
+    } else if (mode === 'overall') {
+      segments = [entries.slice().sort(cmpScore)];
     } else {
       const winners = entries.filter(e => e.fromRank === 1).sort(cmpScore);
       const rest = entries.filter(e => e.fromRank !== 1).sort(cmpScore);
@@ -1082,6 +1086,8 @@ const BracketCore = (function(){
         const same = (x, y) => x.score === y.score && (mode !== 'poster' || x.fromRank === y.fromRank);
         while (j + 1 < seg.length && same(seg[j + 1], seg[i])) j++;
         const blk = seg.slice(i, j + 1);
+        // 같은 전반전 조 안의 같은 점수는 전반전에서 이미 순서가 정해짐(동전/직접) → 그 순서 그대로, 다시 묻지 않음
+        if (blk.length > 1 && mode === 'overall' && new Set(blk.map(e => e.fromG)).size === 1) { list.push(...blk); i = j + 1; continue; }
         if (blk.length > 1) {
           const startPos = list.length + 1, endPos = list.length + blk.length;
           const crosses = groupOfPos(startPos) !== groupOfPos(endPos);
@@ -1215,7 +1221,7 @@ function normalizeState(s){
   d.draw = (s.draw && Array.isArray(s.draw.groups)) ? s.draw : null;
   d.history = Array.isArray(s.history) ? s.history.slice(0, 10) : [];
   d.settings = Object.assign(d.settings, s.settings || {});
-  if (!s.settings || s.settings.placeVer !== 3) { d.settings.placeMode = 'rank'; d.settings.placeVer = 3; }   // 11/7 이전 저장값(엑셀·포스터) → 순위별(대표 지시)
+  if (!s.settings || s.settings.placeVer !== 4) { d.settings.placeMode = 'overall'; d.settings.placeVer = 4; }   // 11/7 11시 대표: 전체 개인 성적순 6·6·6·5·5   // 11/7 이전 저장값(엑셀·포스터) → 순위별(대표 지시)
   if (!['slot','capsule','roulette'].includes(d.settings.effect)) d.settings.effect = 'slot';
   Object.assign(d.settings, normSettings2(d.settings));   // 2단계 설정 검증
   d.bracket = normBracket(s.bracket);                       // 2단계 대진·점수·배치·벌금
@@ -2000,10 +2006,12 @@ async function runSelfTest(mode){
       // 배치
       showTab('p-place');
       let pc = currentPlacement();
-      const evR = evalHalf('r1'), rankOf = new Map(); evR.groups.forEach(g => g.rank.order.forEach((no, i) => rankOf.set(no, i + 1)));
-      ok('place_rank_default', state.settings.placeMode === 'rank' && pc.mode === 'rank' && !pc.ties.length
-        && pc.groups.slice(0, 4).every((g, gi) => g.members.length === sizes.length && g.members.every(m => rankOf.get(m.no) === gi + 1))
-        && pc.groups[4].members.every(m => rankOf.get(m.no) >= 5) && pc.groups.reduce((a, g) => a + g.members.length, 0) === evR.groups.reduce((a, g) => a + g.members.length, 0), JSON.stringify(pc.groups.map(g => g.members.length)));
+      const evR = evalHalf('r1'), scoreOf = new Map(); evR.groups.forEach(g => g.rank.order.forEach(no => scoreOf.set(no, g.byNo.get(no).score)));
+      // 기본 = 전체 개인 성적순: 조 크기 = 1단계와 같음, 앞 조의 최저 점수 ≥ 다음 조의 최고 점수
+      ok('place_overall_default', state.settings.placeMode === 'overall' && pc.mode === 'overall'
+        && JSON.stringify(pc.groups.map(g => g.members.length)) === JSON.stringify(sizes)
+        && pc.groups.every((g, gi) => gi === 0 || Math.min(...pc.groups[gi - 1].members.map(m => scoreOf.get(m.no))) >= Math.max(...g.members.map(m => scoreOf.get(m.no))))
+        && new Set(pc.groups.flatMap(g => g.members.map(m => m.no))).size === scoreOf.size, JSON.stringify(pc.groups.map(g => g.members.length)));
       { const ex0 = $('#placeModeChips input[value="excel"]'); ex0.checked = true; ex0.dispatchEvent(new Event('change', { bubbles: true })); pc = currentPlacement(); }
       ok('place_sizes', JSON.stringify(pc.groups.map(g => g.members.length)) === JSON.stringify(sizes));
       const winners = evalHalf('r1').groups.map(g => g.rank.order[0]).sort((a, b) => a - b);
@@ -2183,7 +2191,7 @@ const stamped = new Set();          // 꼴찌 도장 애니메이션 1회만
 const HALF_LABEL = { r1: '전반전', r2: '후반전' };
 
 function defaultBracket(){ return { r1: null, place: null, r2: null, placeTies: {}, fines: { marks: {} } }; }
-function defaultSettings2(){ return { poster: 'A', r1Start: '07:00', r2Start: '08:25', roundMin: 13, target: 21, courts: [1, 2, 3, 4, 5], placeMode: 'rank', placeVer: 3, gradeMode: 'poster' }; }
+function defaultSettings2(){ return { poster: 'A', r1Start: '07:00', r2Start: '08:25', roundMin: 13, target: 21, courts: [1, 2, 3, 4, 5], placeMode: 'overall', placeVer: 4, gradeMode: 'poster' }; }
 function normScores(o){
   const out = {};
   if (o && typeof o === 'object') for (const [id, s] of Object.entries(o)) {
@@ -2210,7 +2218,7 @@ function normHalf(h){
 function normBracket(b){
   const d = defaultBracket(); if (!b || typeof b !== 'object') return d;
   d.r1 = normHalf(b.r1); d.r2 = normHalf(b.r2);
-  if (b.place && typeof b.place === 'object' && normGroups(b.place.groups)) d.place = { mode: ['poster', 'rank'].includes(b.place.mode) ? b.place.mode : 'excel', groups: normGroups(b.place.groups), locked: !!b.place.locked, lockedAt: b.place.lockedAt || null, key: String(b.place.key || '') };
+  if (b.place && typeof b.place === 'object' && normGroups(b.place.groups)) d.place = { mode: ['poster', 'rank', 'overall'].includes(b.place.mode) ? b.place.mode : 'excel', groups: normGroups(b.place.groups), locked: !!b.place.locked, lockedAt: b.place.lockedAt || null, key: String(b.place.key || '') };
   d.placeTies = normTies(b.placeTies);
   if (b.fines && b.fines.marks && typeof b.fines.marks === 'object') {
     for (const [no, m] of Object.entries(b.fines.marks)) if (m && typeof m === 'object') d.fines.marks[no] = { late: !!m.late, noshow: !!m.noshow, dress: !!m.dress, coupon: !!m.coupon, prevFine: Math.max(0, +m.prevFine || 0), prevAttend: Math.max(0, +m.prevAttend || 0) };
@@ -2225,7 +2233,7 @@ function normSettings2(st){
   if (+st.roundMin >= 5 && +st.roundMin <= 40) d.roundMin = +st.roundMin;
   if ([15, 21, 25].includes(+st.target)) d.target = +st.target;
   if (Array.isArray(st.courts) && st.courts.length === 5 && st.courts.every(c => +c >= 1 && +c <= 20)) d.courts = st.courts.map(Number);
-  if (st.placeVer === 3 && ['excel', 'poster', 'rank'].includes(st.placeMode)) d.placeMode = st.placeMode;   // 11/7 이전 저장값은 순위별로 전환
+  if (st.placeVer === 4 && ['excel', 'poster', 'rank', 'overall'].includes(st.placeMode)) d.placeMode = st.placeMode;   // 11/7 이전 저장값은 순위별로 전환
   if (['excel', 'poster'].includes(st.gradeMode)) d.gradeMode = st.gradeMode;
   return d;
 }
@@ -2434,7 +2442,7 @@ function personResultsHtml(which, ev, h){
   const head = `<th>이름</th><th>${isR2 ? '후반' : '전반'} 조·순위</th><th>승·패</th><th>득점</th><th>실점</th><th>득실</th>` + (isR2 ? '<th>전반 결과</th><th>급수</th><th>상품</th>' : '<th>후반전 조</th>') + '<th>경기별 결과</th>';
   return `<div class="box"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><h2 style="margin:0">👤 ${HALF_LABEL[which]} 개인 결과</h2><span class="spacer"></span><input type="search" class="psearch" id="psearch-${which}" placeholder="이름 검색" value="${esc(q)}" autocomplete="off" style="max-width:220px"></div>
     <div class="ptablewrap"><table class="ptable"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="muted small">${isR2 ? '급수는 후반전 성적(1조→5조 순서 + 조 내 순위)으로 정해집니다. 조 경기가 끝나기 전에는 현재 순위 기준입니다.' : (state.settings.placeMode === 'rank' ? '후반전 조는 각 조 순위대로(1위→1조, 2위→2조 …, 6위는 5조) 미리 보여 줍니다.' : '후반전 조는 전반전 확정 뒤 배치 규칙으로 미리 보여 줍니다.')}</p></div>`;
+    <p class="muted small">${isR2 ? '급수는 후반전 성적(1조→5조 순서 + 조 내 순위)으로 정해집니다. 조 경기가 끝나기 전에는 현재 순위 기준입니다.' : (state.settings.placeMode === 'overall' ? '후반전 조는 전반전 확정 뒤 전체 개인 성적순(1조 6·2조 6·3조 6·4조 5·5조 5명)으로 미리 보여 줍니다.' :'후반전 조는 전반전 확정 뒤 배치 규칙으로 미리 보여 줍니다.')}</p></div>`;
 }
 
 /* 조별 대진표 — 엑셀 대진표처럼 조마다 경기 순서표 + 현재 순위 */
@@ -2776,8 +2784,10 @@ function renderPlace(){
   $$('#placeModeChips label').forEach(l => { const inp = l.querySelector('input'); const on = inp.value === (locked ? b.place.mode : state.settings.placeMode); l.classList.toggle('on', on); inp.checked = on; inp.disabled = locked; });
   const msg = $('#placeMsg');
   const pmode = locked ? b.place.mode : state.settings.placeMode;
-  $('#placeRule').innerHTML = pmode === 'rank'
-    ? '순위별(기본): 전반전 각 조 1위만 후반전 1조, 2위만 2조, 3위만 3조, 4위만 4조, 5위는 5조. 그보다 아래 순위(6위 등)는 5조에 함께 들어갑니다(28명 → 5·5·5·5·8명). 조 안 자리 순서는 점수(승률×1000+득실차+나이×0.03)순.'
+  $('#placeRule').innerHTML = pmode === 'overall'
+    ? '전체 개인 성적순(기본): 전반전 조와 관계없이 28명 전원을 개인 성적(승률×1000+득실차+나이×0.03) 순으로 줄 세워 위에서부터 1조 6명 → 2조 6명 → 3조 6명 → 4조 5명 → 5조 5명(1단계와 같은 조 크기). 같은 점수가 조 경계에 걸리면 동전 또는 직접 지정.'
+    : pmode === 'rank'
+    ? '순위별: 전반전 각 조 1위만 후반전 1조, 2위만 2조, 3위만 3조, 4위만 4조, 5위는 5조. 그보다 아래 순위(6위 등)는 5조에 함께 들어갑니다(28명 → 5·5·5·5·8명). 조 안 자리 순서는 점수(승률×1000+득실차+나이×0.03)순.'
     : pmode === 'poster'
     ? '포스터 방식: 전반전 각 조 r위 → 후반전 r조. 조 크기(1단계와 같은 블록)에 맞추려고 넘치는 인원은 (전반 순위, 승률·득실·나이) 순으로 다음 조로 밀립니다.'
     : '엑셀 방식(기본): 전반전 각 조 1위 5명 → 후반전 1조(점수순 좌석), 나머지 전원을 조 구분 없이 점수(승률×1000+득실차+나이×0.03)순으로 1조 잔여석 → 2조 → … → 5조. 조 크기는 1단계와 같은 블록.';
