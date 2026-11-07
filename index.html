@@ -485,6 +485,7 @@ table.final td.num{text-align:center;font-weight:900}
 body[data-theme="B"] #show{background:radial-gradient(1200px 700px at 50% 30%,#5c3e20,#1a0f05 70%)}
 body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3b2fb0,#0a0830 70%)}
 #show[hidden]{display:none}
+#showMc.on{background:var(--accent);color:#111;border-color:var(--accent)}
 .show-top{display:flex;gap:8px;align-items:center;padding:10px 14px;flex-wrap:wrap}
 .show-top #showProg{font-weight:800;color:var(--accent)}
 .show-stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;perspective:1200px}
@@ -772,7 +773,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <div id="show" hidden>
   <div class="show-top"><span id="showProg"></span><span class="spacer"></span>
     <button class="ghost" id="showPrev">◀ 이전</button><button class="primary" id="showNext">다음 ▶</button>
-    <button class="ghost" id="showAuto">자동 진행</button><button class="ghost" id="showAll">전부 공개 ⏩</button><button class="ghost" id="showClose">닫기 ✕</button></div>
+    <button class="ghost" id="showAuto">자동 진행</button><button class="ghost" id="showMc" title="발표 단계마다 시아 멘트 + 카드마다 이름 호명">🎤 MC 음성 켜짐</button><button class="ghost" id="showAll">전부 공개 ⏩</button><button class="ghost" id="showClose">닫기 ✕</button></div>
   <div class="show-stage" id="showStage"></div>
   <div class="show-strip" id="showStrip"></div>
 </div>
@@ -1284,10 +1285,12 @@ function annPlay(src, myRun){
   return new Promise(res => {
     if (myRun !== Announce.run) return res(false);
     if (!Announce.el) Announce.el = new Audio();
-    const a = Announce.el; let done = false; const fin = ok => { if (done) return; done = true; a.onended = a.onerror = null; res(ok); };
+    // 안전 시간: 길이를 알기 전 30초(느린 망) → 길이를 알면 (길이+1.5초). 예전엔 8초 고정이라 15·24초 멘트가 잘렸음(11/7 수정)
+    const a = Announce.el; let done = false, tm = 0; const fin = ok => { if (done) return; done = true; clearTimeout(tm); a.onended = a.onerror = a.onloadedmetadata = null; res(ok); };
     a.onended = () => fin(true); a.onerror = () => fin(false);
+    a.onloadedmetadata = () => { if (isFinite(a.duration) && a.duration > 0) { clearTimeout(tm); tm = setTimeout(() => fin(true), a.duration * 1000 + 1500); } };
+    tm = setTimeout(() => fin(true), 30000);
     a.src = src; const pr = a.play(); if (pr && pr.catch) pr.catch(() => fin(false));
-    setTimeout(() => fin(true), 8000);
   });
 }
 function annSpeak(text, myRun){   // 녹음이 없는 이름(현장 추가 인원)은 브라우저 한국어 음성으로
@@ -2872,7 +2875,26 @@ function renderAward(){
 $('#gradeModeChips').addEventListener('change', e => { if (e.target.name !== 'gradeMode') return; state.settings.gradeMode = e.target.value; save(); renderAward(); });
 
 /* 발표 모드: 하위부터 카드 뒤집기(일반인 → 초심 → … → 준자강 → 자강) */
-const Show = { steps: [], i: -1, auto: false, timer: 0 };
+const Show = { steps: [], i: -1, auto: false, timer: 0, stepAt: 0, voiceEnd: 0 };
+/* 발표 모드 MC 음성(11/7): 시작·급수마다 시아 멘트(audio/show), 카드가 뒤집히면 그 사람 실명(audio/names) — 자동 진행은 멘트가 끝난 뒤 다음으로 */
+const SHOW_TIER_CLIP = { '일반인': 'sh_ilban', '초심': 'sh_chosim', D: 'sh_D', C: 'sh_C', B: 'sh_B', A: 'sh_A', S: 'sh_S', '준자강': 'sh_jun', '자강': 'sh_ja' };
+const ShowVoice = { on: true, speaking: false, run: null };
+function renderShowMc(){ const b = $('#showMc'); if (!b) return; b.textContent = !ShowVoice.on ? '🔇 MC 음성 꺼짐' : ShowVoice.speaking ? '🎤 MC 말하는 중' : '🎤 MC 음성 켜짐'; b.classList.toggle('on', ShowVoice.on && ShowVoice.speaking); }
+function showVoiceStop(){ if (ShowVoice.run !== null && ShowVoice.run === Announce.run) annStop(); ShowVoice.run = null; ShowVoice.speaking = false; renderShowMc(); }
+async function showSpeak(parts){   // parts: [{clip}] 또는 [{name}]
+  if (!ShowVoice.on || SELFTEST || DEMO || $('#show').hidden) return;
+  if (typeof McVoice !== 'undefined' && McVoice.key) mcStop();
+  annStop(); const vr = Announce.run; ShowVoice.run = vr; ShowVoice.speaking = true; renderShowMc();
+  try {
+    for (const p of parts) { if (vr !== Announce.run) return; if (p.clip) await annPlay(`audio/show/${p.clip}.mp3`, vr); else await annName(p.name, vr); }
+  } finally { if (vr === ShowVoice.run) { ShowVoice.run = null; ShowVoice.speaking = false; Show.voiceEnd = Date.now(); renderShowMc(); } }
+}
+function showVoiceFor(st){
+  if (!st) return null;
+  if (st.t === 'tier') return [{ clip: SHOW_TIER_CLIP[st.grade] }].filter(p => p.clip);
+  if (st.t === 'card') return [{ name: st.row.name }];
+  return [{ clip: 'sh_outro' }];
+}
 const TIER_ORDER = ['일반인', '초심', 'D', 'C', 'B', 'A', 'S', '준자강', '자강'];
 function buildShowSteps(rows){
   const steps = [];
@@ -2902,6 +2924,7 @@ function showStrip(){
 async function showGo(i){
   if (i < 0 || i >= Show.steps.length) return;
   Show.i = i; const st = Show.steps[i]; const stage = $('#showStage');
+  showVoiceStop(); Show.stepAt = Date.now();
   const id = Fx.start();
   try {
     if (st.t === 'tier') {
@@ -2932,10 +2955,11 @@ async function showGo(i){
       Sound.fanfare(); burst(260);
     }
   } finally { showStrip(); Fx.end(id); }
+  if (Show.i === i && !$('#show').hidden) await showSpeak(showVoiceFor(st) || []);   // 연출이 끝까지 간 단계만 멘트(이전·건너뛰기로 끊긴 단계는 생략)
 }
 function showNext(){ if (Fx.running) { Fx.skip(); return; } if (Show.i < Show.steps.length - 1) showGo(Show.i + 1); else showAutoStop(); }
 function showPrev(){ if (Show.i > 0) { Fx.cancel(); showGo(Show.i - 1); } }
-function showAll(){ Fx.cancel(); showAutoStop(); Show.i = Show.steps.length - 1; showGo(Show.i); }
+function showAll(){ showVoiceStop(); Fx.cancel(); showAutoStop(); Show.i = Show.steps.length - 1; showGo(Show.i); }
 function showAutoStop(){ Show.auto = false; clearInterval(Show.timer); $('#showAuto').textContent = '자동 진행'; }
 function openShow(){
   const rows = finalResults(); if (!rows) { toast('후반전을 먼저 확정하세요.'); return false; }
@@ -2943,9 +2967,11 @@ function openShow(){
   $('#show').hidden = false; document.body.classList.add('showing');
   if (document.documentElement.requestFullscreen && !document.fullscreenElement && !SELFTEST && !DEMO) document.documentElement.requestFullscreen().catch(() => {});
   $('#showStage').innerHTML = '<div class="tierintro">🎤 급수 발표<small>하위 순위부터 한 명씩 — 「다음 ▶」 또는 스페이스</small></div>';
-  showStrip(); return true;
+  showStrip(); Show.stepAt = Date.now(); renderShowMc();
+  showSpeak([{ clip: 'sh_intro' }]);   // 발표 시작 멘트(버튼 클릭 직후라 브라우저 자동재생 제한에 안 걸림)
+  return true;
 }
-function closeShow(){ Fx.cancel(); showAutoStop(); $('#show').hidden = true; document.body.classList.remove('showing'); if (document.fullscreenElement && document.exitFullscreen && !document.body.classList.contains('projector')) document.exitFullscreen().catch(() => {}); }
+function closeShow(){ showVoiceStop(); Fx.cancel(); showAutoStop(); $('#show').hidden = true; document.body.classList.remove('showing'); if (document.fullscreenElement && document.exitFullscreen && !document.body.classList.contains('projector')) document.exitFullscreen().catch(() => {}); }
 $('#btnShow').addEventListener('click', openShow);
 $('#showNext').addEventListener('click', showNext);
 $('#showPrev').addEventListener('click', showPrev);
@@ -2954,8 +2980,16 @@ $('#showClose').addEventListener('click', closeShow);
 $('#showAuto').addEventListener('click', () => {
   if (Show.auto) { showAutoStop(); return; }
   Show.auto = true; $('#showAuto').textContent = '자동 멈춤';
-  Show.timer = setInterval(() => { if (!Fx.running) { if (Show.i >= Show.steps.length - 1) showAutoStop(); else showGo(Show.i + 1); } }, 2600);
+  // 멘트가 켜져 있으면 멘트가 끝나고 0.8초 뒤 다음 단계, 꺼져 있으면 예전처럼 2.6초 간격
+  Show.timer = setInterval(() => {
+    if (Fx.running || ShowVoice.speaking) return;
+    const now = Date.now();
+    const ready = ShowVoice.on ? (now - Show.stepAt > 1200 && now - Show.voiceEnd > 800) : now - Show.stepAt > 2600;
+    if (!ready) return;
+    if (Show.i >= Show.steps.length - 1) showAutoStop(); else showGo(Show.i + 1);
+  }, 300);
 });
+$('#showMc').addEventListener('click', () => { ShowVoice.on = !ShowVoice.on; if (!ShowVoice.on) showVoiceStop(); renderShowMc(); });
 $('#showStage').addEventListener('click', showNext);
 
 /* 결과 PNG — 이름·순위·급수·상품만(벌금·출석·나이 없음) */

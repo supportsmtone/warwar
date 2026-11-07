@@ -97,6 +97,8 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   check('마지막 한 명 드럼롤·두둥 연출 없음', !/마지막|두둥/.test(ovl), ovl.slice(0, 80));
   const plays1 = await ev('window.__plays.map(x=>x.src)');
   check('추첨 멘트가 먼저(카운트다운·이름 전)', plays1[0] === 'names/draw_pre.mp3' && plays1[1] === 'names/g1.mp3' && !plays1.includes('names/p_intro.mp3'), plays1.slice(0, 4).join(' → '));
+  const gap1 = await ev('window.__plays[1].t - window.__plays[0].t');
+  check('추첨 멘트(15.8초) 끝까지 재생 후 다음 소리', gap1 >= 15500, Math.round(gap1 / 100) / 10 + '초');
   const spokenOrder = await ev('[...window.__spoken]');
   const drawOrder = await ev(`${S}.draw.groups.flatMap(g=>g.members.map(m=>String(m.no)))`);
   check('방송 순서 = 1조→5조 꽂히는 순서', JSON.stringify(spokenOrder) === JSON.stringify(drawOrder));
@@ -221,6 +223,8 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   check(`후반전 배치: 이름이 나올 때마다 방송 ${N}명`, await ev('window.__spoken.size') === N, `${await ev('window.__spoken.size')}명 · ${Math.round((Date.now() - tB) / 1000)}초`);
   const plays2 = await ev('window.__plays.map(x=>x.src)');
   check('후반전 배치 규칙 멘트가 먼저(공개 전)', plays2[0] === 'names/place_pre.mp3' && plays2[1] === 'names/g5.mp3', plays2.slice(0, 3).join(' → '));
+  const gap2 = await ev('window.__plays[1].t - window.__plays[0].t');
+  check('배치 규칙 멘트(24.1초) 끝까지 재생 후 다음 소리', gap2 >= 23800, Math.round(gap2 / 100) / 10 + '초');
   const placeMsg = await ev(`document.getElementById('placeMsg').textContent`);
   if (/동률/.test(placeMsg)) log('   배치 메시지:', placeMsg.slice(0, 120));
   await click('#btnPlaceLock');
@@ -313,8 +317,27 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   await tab('p-award');
   const firstCol = await ev(`[...document.querySelectorAll('#awardBody table.final tbody tr')].map(tr=>tr.children[6] ? tr.children[6].textContent.trim() : '')`);
   check('시상 최종 표에 전반 결과(조·순위·승패·득실) 표시', firstCol.length === N && firstCol.every(t => /^\d조 \d위 · \d승\d패/.test(t)), firstCol[0]);
-  // MC 음성(시상)
+  // 발표 모드 MC 음성: 시작 멘트 → (자동 진행) 일반인 멘트 → 꼴찌부터 실명, 멘트가 끝난 뒤에 다음 단계(잘림 없음)
   await tab('p-award');
+  const NAMES = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'audio', 'names', 'names.json'), 'utf8'));
+  await ev('window.__plays=[]; true');
+  await click('#btnShow'); await sleep(600);
+  check('발표 모드: 열면 시작 멘트(sh_intro) + MC 표시', (await ev('window.__plays.map(x=>x.src).join(",")')) === 'show/sh_intro.mp3' && /MC 말하는 중/.test(await ev(`document.getElementById('showMc').textContent`)));
+  await click('#showAuto');
+  await until('window.__plays.length >= 5', 90000).catch(() => {});
+  const sp = await ev('window.__plays.map(x=>({s:x.src,t:x.t}))');
+  const lastTwo = dom.slice(-2).reverse().map(r => r[1]);   // 발표 순서: 28위 → 27위
+  const wantSeq = ['show/sh_intro.mp3', 'show/sh_ilban.mp3', `names/${NAMES[lastTwo[0]]}.mp3`, `names/${NAMES[lastTwo[1]]}.mp3`, 'show/sh_chosim.mp3'];
+  check('발표 모드 자동 진행: 시작 → 일반인 멘트 → 일반인 2명 실명 → 초심 멘트 순서', JSON.stringify(sp.slice(0, 5).map(x => x.s)) === JSON.stringify(wantSeq), sp.slice(0, 5).map(x => x.s).join(' → '));
+  const g = i => sp[i + 1] && sp[i + 1].t - sp[i].t;
+  check('발표 멘트 안 잘림(시작 18.8초·일반인 10.4초 다 들은 뒤 다음)', g(0) >= 18500 && g(1) >= 10000, `${Math.round(g(0) / 100) / 10}초 · ${Math.round(g(1) / 100) / 10}초`);
+  const strip = await ev(`[...document.querySelectorAll('#showStrip > span')].map(s=>s.textContent)`);
+  check('공개된 카드 = 부른 이름(같은 순서)', strip.length >= 2 && strip[0].includes(lastTwo[0]) && strip[1].includes(lastTwo[1]) && /일반인/.test(strip[0]), strip.slice(0, 2).join(' / '));
+  await click('#showAuto'); await click('#showMc'); await sleep(200);
+  check('MC 음성 끄기 → 즉시 멈춤', /꺼짐/.test(await ev(`document.getElementById('showMc').textContent`)));
+  await click('#showMc'); await click('#showClose'); await sleep(200);
+  check('발표 모드 닫기', await ev(`document.getElementById('show').hidden`));
+  // MC 음성(시상)
   const mcIds = await ev(`[...document.querySelectorAll('#mcbar button')].map(b=>b.dataset.mc).join(',')`);
   check('MC 음성 버튼(시상) 16·17·18·19·20·21', mcIds === '16,17,18,19,20,21', mcIds);
   await click('#mcbar button[data-mc="19"]'); await sleep(2000);
