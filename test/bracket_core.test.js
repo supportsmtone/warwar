@@ -38,6 +38,15 @@ test('템플릿 = rules_spec 명세(5인 5경기·6인 6경기, 좌석)', () => 
   }
 });
 
+test('7~10인 템플릿(순위별 배치 마지막 조): 경기 수=인원, 각자 4경기, 같은 파트너 두 번 없음, 3경기 연속 출전 없음', () => {
+  for (const k of [7, 8, 9, 10]) {
+    const tpl = B.TEMPLATES[k]; assert.equal(tpl.length, k);
+    const games = {}, part = new Set();
+    tpl.forEach(([A, Bt]) => { for (const T of [A, Bt]) { const key = T.slice().sort().join('-'); assert.ok(!part.has(key), k + '인 파트너 중복 ' + key); part.add(key); } [...A, ...Bt].forEach(x => games[x] = (games[x] || 0) + 1); assert.equal(new Set([...A, ...Bt]).size, 4); });
+    for (let x = 1; x <= k; x++) { assert.equal(games[x], 4, k + '인 ' + x + '번 경기 수');
+      let run = 0; tpl.forEach(([A, Bt]) => { run = [...A, ...Bt].includes(x) ? run + 1 : 0; assert.ok(run < 3, k + '인 ' + x + '번 3연속'); }); }
+  }
+});
 test('템플릿 성질: 5인=각자 4경기·파트너 4명 1회씩, 6인=각자 4경기·1-2/3-4/5-6 은 파트너 아님', () => {
   for (const n of [5, 6]) {
     const games = Array(n + 1).fill(0), partner = {};
@@ -83,7 +92,7 @@ test('buildMatches: 코트=조 번호(설정 변경 가능), 시각=시작+(라�
   assert.ok(ms.every(m => m.court === m.g));
   const ms2 = B.buildMatches(groups, { start: '08:25', roundMinutes: 15, courtOfGroup: [5, 4, 3, 2, 1] });
   assert.equal(ms2.find(m => m.id === '1-3').court, 5); assert.equal(ms2.find(m => m.id === '1-3').time, '08:55');
-  assert.throws(() => B.buildMatches([{ no: 1, members: roster(4) }], {}), /5·6인/);
+  assert.throws(() => B.buildMatches([{ no: 1, members: roster(4) }], {}), /5~10인/);
   assert.equal(B.addMinutes('23:50', 20), '00:10');
 });
 
@@ -211,20 +220,29 @@ function runFlow(n, seed, placeMode, gradeMode){
 }
 
 for (const n of [28, 27, 25, 30]) {
-  test(`전체 흐름 시뮬 ${n}명 × ${SIM_RUNS}회 × (배치 엑셀/포스터 교대, 급수 포스터/엑셀 교대): 오류 0·전원 급수 1개·조 크기 보존`, () => {
+  test(`전체 흐름 시뮬 ${n}명 × ${SIM_RUNS}회 × (배치 순위별/엑셀/포스터 교대, 급수 포스터/엑셀 교대): 오류 0·전원 급수 1개·조 크기 보존`, () => {
     let errors = 0, ties1 = 0, tiesP = 0;
     const gradeCount = {};
     for (let i = 0; i < SIM_RUNS; i++) {
-      const placeMode = i % 2 ? 'poster' : 'excel', gradeMode = i % 4 < 2 ? 'poster' : 'excel';
+      const placeMode = ['rank', 'excel', 'poster'][i % 3], gradeMode = i % 4 < 2 ? 'poster' : 'excel';
       let f;
       try { f = runFlow(n, n * 100000 + i, placeMode, gradeMode); } catch (e) { errors++; if (errors < 3) console.error(e); continue; }
       const { people, ev1, pl, ev2, res, sizes } = f;
       // 경기 수·1인 4경기
       assert.equal(ev1.total, sizes.reduce((s, z) => s + (z === 6 ? 6 : 5), 0));
+      assert.equal(ev2.total, n);   // 후반전도 1인 4경기 → 경기 수 = 인원
       for (const ev of [ev1, ev2]) for (const g of ev.groups) for (const s of g.stats) assert.equal(s.played, 4);
       // 조 크기 보존(전반=후반=1단계 블록)
       assert.deepEqual(ev1.groups.map(g => g.members.length), sizes);
-      assert.deepEqual(pl.groups.map(g => g.members.length), sizes);
+      if (placeMode !== 'rank') assert.deepEqual(pl.groups.map(g => g.members.length), sizes);
+      else {
+        // 순위별: 1~4조는 그 순위만, 5조는 5위 이하 전부(28명 → 5·5·5·5·8), 경계 동률 없음
+        assert.equal(pl.ties.length, 0);
+        const G = pl.groups.length;
+        for (const g of pl.groups) for (const m of g.members) assert.ok(g.no < G ? m.fromRank === g.no : m.fromRank >= g.no, `순위별 ${m.fromRank}위→${g.no}조`);
+        if (n === 28) assert.deepEqual(pl.groups.map(g => g.members.length), [5, 5, 5, 5, 8]);
+        if (n === 27) assert.deepEqual(pl.groups.map(g => g.members.length), [5, 5, 5, 5, 7]);
+      }
       // 배치: 전원 1회
       const placed = pl.groups.flatMap(g => g.members.map(m => m.no)).sort((a, b) => a - b);
       assert.deepEqual(placed, people.map(p => p.no));

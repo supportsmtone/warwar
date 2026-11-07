@@ -285,6 +285,35 @@ button.huge{font-size:1.5rem;padding:16px 28px;min-height:64px}
 .gbox header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;position:static;background:none;border:0;padding:0;margin:0;box-shadow:none;backdrop-filter:none;z-index:auto}
 .gbox h3{margin:0;font-size:1.35rem;color:var(--gc)}
 .gbox .meta{color:var(--muted);font-weight:600;font-size:.9rem}
+.gbox header .pbtn{margin-left:auto;padding:4px 10px;font-size:.82rem}
+#printArea{display:none}
+@media print{
+  @page{size:A4 portrait;margin:11mm}
+  html,body.printing{background:#fff!important}
+  body.printing{color:#000!important}
+  body.printing > *:not(#printArea){display:none!important}
+  body.printing #printArea{display:block!important}
+}
+#printArea .psheet{color:#000;background:#fff;font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;break-after:page;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#printArea .psheet:last-child{break-after:auto;page-break-after:auto}
+#printArea .phead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:6px}
+#printArea .pev{font-size:11pt;font-weight:600}
+#printArea h1{margin:2px 0 0;font-size:24pt;color:#000}
+#printArea .pcourt{font-size:30pt;font-weight:900;line-height:1;border:3px solid #000;border-radius:8px;padding:4px 12px;text-align:center}
+#printArea .pcourt small{display:block;font-size:10pt;font-weight:700}
+#printArea .pmeta{margin:6px 0 8px;font-size:11pt}
+#printArea table{width:100%;border-collapse:collapse;margin-top:8px;break-inside:avoid}
+#printArea th,#printArea td{border:1px solid #000;padding:7px 6px;font-size:12.5pt;color:#000;background:#fff}
+#printArea th{background:#e8e8e8;font-size:10.5pt}
+#printArea td.c{text-align:center;white-space:nowrap}
+#printArea td.tm{font-weight:700}
+#printArea td.sc i{font-style:normal;margin:0 4px;font-weight:800}
+#printArea td.sc b{font-size:15pt}
+#printArea .sbox{display:inline-block;width:15mm;height:9mm;border:1.6px solid #000;border-radius:3px;vertical-align:middle}
+#printArea td.sign{width:18mm}
+#printArea table.pr{margin-top:14px}
+#printArea table.pr td.nm{font-weight:700}
+#printArea .pfoot{margin-top:8px;font-size:9pt;color:#333}
 .gmembers{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .gmembers span{font-size:.85rem;padding:2px 8px;border-radius:999px;background:var(--card2)}
 .gbscroll{overflow-x:auto}
@@ -616,6 +645,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <section class="panel" id="p-place">
   <div class="rtools">
     <div class="chips" id="placeModeChips" role="radiogroup" aria-label="배치 방식">
+      <label><input type="radio" name="placeMode" value="rank">순위별(각 조 1위→1조, 2위→2조 …)</label>
       <label><input type="radio" name="placeMode" value="excel">엑셀 방식(각 조 1위→1조 + 점수순)</label>
       <label><input type="radio" name="placeMode" value="poster">포스터 방식(각 조 순위→조)</label>
     </div>
@@ -747,6 +777,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <footer>우당탕탕요절복통 · 대진표(조 추첨 → 전반전 → 후반전 → 급수·시상) · 네트워크 불필요</footer>
 <canvas id="confetti"></canvas>
 <div id="toast"></div>
+<div id="printArea" aria-hidden="true"></div>
 
 <script>
 /* DRAW_CORE_BEGIN — 순수 로직(브라우저·Node 공용). web/test 에서 이 블록을 추출해 테스트한다. */
@@ -898,7 +929,12 @@ const BracketCore = (function(){
   // 복식 로테이션 템플릿(좌석 번호) — 엑셀 예선 시트 BK5:BP9(경기인원5)·BQ5:BV10(경기인원6)
   const TEMPLATES = {
     5: [[[1,5],[3,4]], [[1,4],[2,3]], [[2,4],[3,5]], [[1,2],[4,5]], [[1,3],[2,5]]],
-    6: [[[1,4],[2,6]], [[1,6],[3,5]], [[2,5],[4,6]], [[1,5],[2,3]], [[2,4],[3,6]], [[1,3],[4,5]]]
+    6: [[[1,4],[2,6]], [[1,6],[3,5]], [[2,5],[4,6]], [[1,5],[2,3]], [[2,4],[3,6]], [[1,3],[4,5]]],
+    // 7~10인(순위별 배치에서 마지막 조에 남는 순위가 합쳐질 때): 1인 4경기·같은 파트너 두 번 없음·3경기 연속 출전 없음
+    7: [[[1,4],[2,5]], [[3,7],[5,6]], [[4,7],[1,6]], [[2,4],[3,5]], [[1,2],[3,6]], [[6,7],[4,5]], [[1,7],[2,3]]],
+    8: [[[4,8],[1,7]], [[2,5],[3,6]], [[4,7],[5,6]], [[2,3],[1,8]], [[1,4],[2,6]], [[3,5],[7,8]], [[3,8],[4,6]], [[1,2],[5,7]]],
+    9: [[[1,7],[5,6]], [[3,4],[2,9]], [[2,8],[1,6]], [[4,8],[5,7]], [[3,9],[6,7]], [[5,8],[2,3]], [[4,9],[1,8]], [[4,5],[3,6]], [[1,2],[7,9]]],
+    10: [[[2,9],[4,6]], [[5,7],[1,3]], [[1,8],[6,10]], [[3,7],[8,9]], [[2,4],[5,10]], [[2,6],[1,7]], [[4,10],[3,8]], [[5,9],[8,10]], [[6,7],[4,5]], [[1,2],[3,9]]]
   };
   const GRADES = ['자강','준자강','S','A','B','C','D','초심','일반인'];          // 높은 급수 → 낮은 급수
   // 엑셀 본선 결과창 I/T 열 고정 문자열(28명 6/6/6/5/5 기준)
@@ -924,7 +960,7 @@ const BracketCore = (function(){
     const out = [];
     for (const g of groups) {
       const n = g.members.length, tpl = TEMPLATES[n];
-      if (!tpl) { const e = new Error(`${g.no}조 ${n}명 — 복식 템플릿은 5·6인만 있습니다(엑셀 「인원x」).`); e.code = 'NO_TEMPLATE'; throw e; }
+      if (!tpl) { const e = new Error(`${g.no}조 ${n}명 — 복식 템플릿은 5~10인만 있습니다.`); e.code = 'NO_TEMPLATE'; throw e; }
       const seat = s => g.members[s - 1].no;
       tpl.forEach(([A, B], i) => out.push({
         id: g.no + '-' + (i + 1), g: g.no, k: i + 1, round: i + 1,
@@ -1008,6 +1044,8 @@ const BracketCore = (function(){
   /* 후반전 배치.
      mode 'excel' : 각 조 1위 → 1조(점수순), 나머지 전원 점수순으로 남은 자리(1조 잔여 → 2조 → … 5조) — 엑셀 예선 결과창 X:AC
      mode 'poster': 각 조 r위 → r조, 조 크기에 맞춰 (순위, 점수) 순으로 넘침 보정
+     mode 'rank'  : (기본·대표 지시 11/7) 각 조 1위만 1조, 2위만 2조, 3위만 3조 … — 조 크기는 그 순위 인원 수.
+                    조 수(5)보다 아래 순위와 4명 이하로 남는 순위(복식 불가)는 마지막 조에 합친다(예: 28명 → 5·5·5·5·8).
      sizes: 후반전 조 크기(1단계 규칙과 같은 총원 블록). decisions: 경계 동률 결정. */
   function placement(evalHalf, mode, sizes, decisions){
     const entries = [];
@@ -1015,6 +1053,15 @@ const BracketCore = (function(){
     const n = entries.length;
     if (sizes.reduce((a, b) => a + b, 0) !== n) throw new Error('조 크기 합이 인원과 다릅니다');
     const cmpScore = (a, b) => (b.score - a.score) || (a.fromRank - b.fromRank) || (a.fromG - b.fromG);
+    if (mode === 'rank') {
+      const maxG = sizes.length, maxR = Math.max(...entries.map(e => e.fromRank));
+      const buckets = [];
+      for (let r = 1; r <= maxR; r++) { const b = entries.filter(e => e.fromRank === r).sort(cmpScore); if (b.length) buckets.push(b); }
+      while (buckets.length > maxG) { const x = buckets.pop(); buckets[buckets.length - 1].push(...x); }
+      while (buckets.length > 1 && buckets[buckets.length - 1].length < 5) { const x = buckets.pop(); buckets[buckets.length - 1].push(...x); }
+      const groups = buckets.map((b, gi) => ({ no: gi + 1, size: b.length, members: b.map((e, k) => ({ no: e.no, name: e.name, seat: k + 1, fromG: e.fromG, fromRank: e.fromRank })) }));
+      return { mode, groups, ties: [], decided: [], order: buckets.flat().map(e => e.no) };
+    }
     let segments;
     if (mode === 'poster') {
       segments = [entries.slice().sort((a, b) => (a.fromRank - b.fromRank) || (b.score - a.score) || (a.fromG - b.fromG))];
@@ -1882,6 +1929,10 @@ async function runSelfTest(mode){
       const sizes = DrawCore.groupSizes(n).sizes;
       ok('r1_matches', !!ev0 && ev0.total === sizes.reduce((s, z) => s + (z === 6 ? 6 : 5), 0) && ev0.matches.every(m => m.court === m.g), ev0 && ev0.total);
       ok('r1_times', ev0.matches.filter(m => m.round === 3).every(m => m.time === '07:26'));
+      { const nPr = printGroups('r1', [1]); const sh = $$('#printArea .psheet');
+        ok('print_one_group', nPr === 1 && sh.length === 1 && sh[0].querySelectorAll('table.pm tbody tr').length === ev0.matches.filter(m => m.g === 1).length && $('#printArea').parentElement === document.body && /전반전 1조 대진표/.test(sh[0].textContent));
+        const nAllPr = printGroups('r1', null);
+        ok('print_all_groups', nAllPr === sizes.length && $$('#printArea .psheet').length === sizes.length && $$('#p-r1 [data-act="print"]').length === sizes.length + 1); }
       ok('r1_group_table_default', ui.r1.view === 'group' && $$('#p-r1 .gbox').length === sizes.length && $$('#p-r1 tr[data-act="pad"]').length === ev0.total);
       ui.r1.view = 'round'; renderHalf('r1');
       ok('r1_cards_rendered', $$('#p-r1 .mcard').length === ev0.total);
@@ -1945,6 +1996,11 @@ async function runSelfTest(mode){
       // 배치
       showTab('p-place');
       let pc = currentPlacement();
+      const evR = evalHalf('r1'), rankOf = new Map(); evR.groups.forEach(g => g.rank.order.forEach((no, i) => rankOf.set(no, i + 1)));
+      ok('place_rank_default', state.settings.placeMode === 'rank' && pc.mode === 'rank' && !pc.ties.length
+        && pc.groups.slice(0, 4).every((g, gi) => g.members.length === sizes.length && g.members.every(m => rankOf.get(m.no) === gi + 1))
+        && pc.groups[4].members.every(m => rankOf.get(m.no) >= 5) && pc.groups.reduce((a, g) => a + g.members.length, 0) === evR.groups.reduce((a, g) => a + g.members.length, 0), JSON.stringify(pc.groups.map(g => g.members.length)));
+      { const ex0 = $('#placeModeChips input[value="excel"]'); ex0.checked = true; ex0.dispatchEvent(new Event('change', { bubbles: true })); pc = currentPlacement(); }
       ok('place_sizes', JSON.stringify(pc.groups.map(g => g.members.length)) === JSON.stringify(sizes));
       const winners = evalHalf('r1').groups.map(g => g.rank.order[0]).sort((a, b) => a - b);
       ok('place_excel_winners_to_g1', JSON.stringify(pc.groups[0].members.slice(0, 5).map(m => m.no).sort((a, b) => a - b)) === JSON.stringify(winners));
@@ -2123,7 +2179,7 @@ const stamped = new Set();          // 꼴찌 도장 애니메이션 1회만
 const HALF_LABEL = { r1: '전반전', r2: '후반전' };
 
 function defaultBracket(){ return { r1: null, place: null, r2: null, placeTies: {}, fines: { marks: {} } }; }
-function defaultSettings2(){ return { poster: 'A', r1Start: '07:00', r2Start: '08:25', roundMin: 13, target: 21, courts: [1, 2, 3, 4, 5], placeMode: 'excel', gradeMode: 'poster' }; }
+function defaultSettings2(){ return { poster: 'A', r1Start: '07:00', r2Start: '08:25', roundMin: 13, target: 21, courts: [1, 2, 3, 4, 5], placeMode: 'rank', placeVer: 2, gradeMode: 'poster' }; }
 function normScores(o){
   const out = {};
   if (o && typeof o === 'object') for (const [id, s] of Object.entries(o)) {
@@ -2150,7 +2206,7 @@ function normHalf(h){
 function normBracket(b){
   const d = defaultBracket(); if (!b || typeof b !== 'object') return d;
   d.r1 = normHalf(b.r1); d.r2 = normHalf(b.r2);
-  if (b.place && typeof b.place === 'object' && normGroups(b.place.groups)) d.place = { mode: b.place.mode === 'poster' ? 'poster' : 'excel', groups: normGroups(b.place.groups), locked: !!b.place.locked, lockedAt: b.place.lockedAt || null, key: String(b.place.key || '') };
+  if (b.place && typeof b.place === 'object' && normGroups(b.place.groups)) d.place = { mode: ['poster', 'rank'].includes(b.place.mode) ? b.place.mode : 'excel', groups: normGroups(b.place.groups), locked: !!b.place.locked, lockedAt: b.place.lockedAt || null, key: String(b.place.key || '') };
   d.placeTies = normTies(b.placeTies);
   if (b.fines && b.fines.marks && typeof b.fines.marks === 'object') {
     for (const [no, m] of Object.entries(b.fines.marks)) if (m && typeof m === 'object') d.fines.marks[no] = { late: !!m.late, noshow: !!m.noshow, dress: !!m.dress, coupon: !!m.coupon, prevFine: Math.max(0, +m.prevFine || 0), prevAttend: Math.max(0, +m.prevAttend || 0) };
@@ -2165,7 +2221,7 @@ function normSettings2(st){
   if (+st.roundMin >= 5 && +st.roundMin <= 40) d.roundMin = +st.roundMin;
   if ([15, 21, 25].includes(+st.target)) d.target = +st.target;
   if (Array.isArray(st.courts) && st.courts.length === 5 && st.courts.every(c => +c >= 1 && +c <= 20)) d.courts = st.courts.map(Number);
-  if (['excel', 'poster'].includes(st.placeMode)) d.placeMode = st.placeMode;
+  if (st.placeVer === 2 && ['excel', 'poster', 'rank'].includes(st.placeMode)) d.placeMode = st.placeMode;   // 11/7 이전 저장값은 순위별로 전환
   if (['excel', 'poster'].includes(st.gradeMode)) d.gradeMode = st.gradeMode;
   return d;
 }
@@ -2374,10 +2430,40 @@ function personResultsHtml(which, ev, h){
   const head = `<th>이름</th><th>${isR2 ? '후반' : '전반'} 조·순위</th><th>승·패</th><th>득점</th><th>실점</th><th>득실</th>` + (isR2 ? '<th>전반 결과</th><th>급수</th><th>상품</th>' : '<th>후반전 조</th>') + '<th>경기별 결과</th>';
   return `<div class="box"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><h2 style="margin:0">👤 ${HALF_LABEL[which]} 개인 결과</h2><span class="spacer"></span><input type="search" class="psearch" id="psearch-${which}" placeholder="이름 검색" value="${esc(q)}" autocomplete="off" style="max-width:220px"></div>
     <div class="ptablewrap"><table class="ptable"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="muted small">${isR2 ? '급수는 후반전 성적(1조→5조 순서 + 조 내 순위)으로 정해집니다. 조 경기가 끝나기 전에는 현재 순위 기준입니다.' : '후반전 조는 전반전 확정 뒤 배치 규칙(각 조 1위 → 1조, 나머지 점수순)으로 미리 보여 줍니다.'}</p></div>`;
+    <p class="muted small">${isR2 ? '급수는 후반전 성적(1조→5조 순서 + 조 내 순위)으로 정해집니다. 조 경기가 끝나기 전에는 현재 순위 기준입니다.' : (state.settings.placeMode === 'rank' ? '후반전 조는 각 조 순위대로(1위→1조, 2위→2조 …, 6위는 5조) 미리 보여 줍니다.' : '후반전 조는 전반전 확정 뒤 배치 규칙으로 미리 보여 줍니다.')}</p></div>`;
 }
 
 /* 조별 대진표 — 엑셀 대진표처럼 조마다 경기 순서표 + 현재 순위 */
+/* ---------- 대진표 출력 — 조마다 A4 한 장(흑백), 점수 칸은 손으로 적게 비워 둠 ---------- */
+function printSheetHtml(which, ev, h, nm, g){
+  const ms = ev.matches.filter(m => m.g === g.no), court = ms[0] ? ms[0].court : g.no;
+  const any = ms.some(m => B.hasScore(h.scores[m.id]));
+  const tm = ids => ids.map(p => esc(nm.get(p) || '?')).join(' · ');
+  const rows = ms.map(m => { const s = h.scores[m.id], has = B.hasScore(s);
+    return `<tr><td class="c">${m.k}</td><td class="c">${m.time}</td><td class="tm">${tm(m.a)}</td><td class="c sc">${has ? `<b>${s.a}</b>` : '<span class="sbox"></span>'}<i>:</i>${has ? `<b>${s.b}</b>` : '<span class="sbox"></span>'}</td><td class="tm">${tm(m.b)}</td><td class="sign"></td></tr>`; }).join('');
+  const mem = g.members.map((m, i) => { const x = g.byNo.get(m.no), r = g.rank.order.indexOf(m.no) + 1;
+    return `<tr><td class="c">${i + 1}</td><td class="nm">${esc(m.name)}</td><td class="c">${any ? x.w : ''}</td><td class="c">${any ? x.l : ''}</td><td class="c">${any ? (x.diff > 0 ? '+' : '') + x.diff : ''}</td><td class="c">${g.complete && !g.rank.ties.length ? r : ''}</td></tr>`; }).join('');
+  return `<section class="psheet"><div class="phead"><div><div class="pev">우당탕탕 자체대회 · 2026.11.14(토)</div><h1>${HALF_LABEL[which]} ${g.no}조 대진표</h1></div><div class="pcourt">${court}<small>코트</small></div></div>
+    <div class="pmeta">${g.members.length}명 · ${ms.length}경기 · 첫 경기 ${ms[0] ? ms[0].time : ''} · ${state.settings.target}점 단판${which === 'r2' && g.no === 1 ? ' · 🏆 상금 조(1등 20만·2등 10만·3등 5만)' : which === 'r2' ? ' · 1등 3만원' : ''}</div>
+    <table class="pm"><thead><tr><th>경기</th><th>시각</th><th>A팀</th><th>점수</th><th>B팀</th><th>확인</th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="pr"><thead><tr><th>번호</th><th>이름</th><th>승</th><th>패</th><th>득실</th><th>순위</th></tr></thead><tbody>${mem}</tbody></table>
+    <p class="pfoot">순위: 승률 → 득실차 → 나이 · 꼴찌 벌금 5천원 · 점수 입력 playjc.co.kr/#${which === 'r1' ? 'round1' : 'round2'} · 출력 ${new Date().toLocaleString('ko-KR', { hour12: false })}</p></section>`;
+}
+function printGroups(which, gnos){
+  const h = state.bracket[which], ev = h && evalHalf(which);
+  if (!h || !ev || ev.error) { toast('출력할 대진표가 없습니다 — 조편성을 먼저 확정하세요.'); return false; }
+  const gs = ev.groups.filter(g => !gnos || gnos.includes(g.no));
+  if (!gs.length) { toast('출력할 조가 없습니다'); return false; }
+  const nm = nameMap(); $('#printArea').innerHTML = gs.map(g => printSheetHtml(which, ev, h, nm, g)).join('');
+  document.body.classList.add('printing');
+  const title = document.title; document.title = `우당탕탕_${HALF_LABEL[which]}_${gs.length === 1 ? gs[0].no + '조' : '전체'}_대진표`;
+  let restored = false;
+  const restore = () => { if (restored) return; restored = true; document.body.classList.remove('printing'); document.title = title; window.removeEventListener('afterprint', restore); };
+  window.addEventListener('afterprint', restore); setTimeout(restore, 60000);
+  if (SELFTEST || window.__noPrint) return gs.length;
+  setTimeout(() => { try { window.print(); } catch (e) { restore(); toast('인쇄 창을 열 수 없습니다'); } }, 60);
+  return gs.length;
+}
 function groupBracketHtml(which, ev, h, nm, editable, nexts){
   return '<div class="gbgrid">' + ev.groups.map(g => {
     const ms = ev.matches.filter(m => m.g === g.no);
@@ -2407,7 +2493,7 @@ function groupBracketHtml(which, ev, h, nm, editable, nexts){
         extra = `<td class="grd">${esc(gr)}</td><td class="pz">${pz ? `${pz.amount / 10000}만원` : ''}</td>`; }
       return `<tr class="${last ? 'last' : ''} ${tied.has(no) ? 'tied' : ''}"><td>${i + 1}</td><td class="nm">${esc(x.name)}${tied.has(no) ? ' <span class="badge tie">동률</span>' : ''}${last ? ' <span class="badge red">꼴찌 5천원</span>' : ''}</td><td>${x.w}</td><td>${x.l}</td><td>${x.diff > 0 ? '+' : ''}${x.diff}</td>${extra}</tr>`; }).join('');
     return `<section class="gbox" style="--gc:${color}">
-      <header><h3>${g.no}조</h3>${which === 'r2' && g.no === 1 ? '<span class="badge prize">🏆 상금 조 20·10·5만원</span>' : ''}<span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · ${done}/${ms.length}경기</span></header>
+      <header><h3>${g.no}조</h3>${which === 'r2' && g.no === 1 ? '<span class="badge prize">🏆 상금 조 20·10·5만원</span>' : ''}<span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · ${done}/${ms.length}경기</span><button type="button" class="ghost pbtn" data-act="print" data-g="${g.no}">🖨 ${g.no}조 출력</button></header>
       <div class="gmembers">${g.members.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>
       <div class="gbscroll"><table class="gb"><thead><tr><th>경기</th><th>시각</th><th>A팀</th><th>점수</th><th>B팀</th></tr></thead><tbody>${rows}</tbody></table></div>
       <table class="gr"><thead><tr><th>순위</th><th>이름</th><th>승</th><th>패</th><th>득실</th>${which === 'r2' ? `<th>급수${g.complete ? '' : '(현재)'}</th><th>상품</th>` : ''}</tr></thead><tbody>${rank}</tbody></table>${tiebar}
@@ -2466,7 +2552,7 @@ function renderHalf(which){
   }
   if (which === 'r1' && state.draw && h.key !== drawKey()) {
     const n = Object.keys(h.scores || {}).length;
-    el.innerHTML = `<div class="box"><h2>전반전 경기표</h2><p class="notice red"><b>조편성이 새로 바뀌었습니다.</b> 지금 경기표는 이전 조편성 기준이라 숨겼습니다.<br>아래 버튼을 누르면 <b>지금 조편성으로 확정</b>하고 바로 점수를 입력할 수 있습니다.${n ? ` (이전 경기표 점수 ${n}개는 ⚙ 데이터·설정 → 되돌리기에 보관됩니다)` : ''}</p>
+    el.innerHTML = `<div class="box"><h2>전반전 경기표</h2><p class="notice red"><b>조편성이 새로 바뀌었습니다.</b> 지금 경기표는 이전 조편성 기준이라 숨겼습니다.<br>아래 버튼을 누르면 <b>지금 조편성으로 확정</b>하고 바로 점수를 입력할 수 있습니다(확정하면 조별 🖨 출력 버튼이 나옵니다).${n ? ` (이전 경기표 점수 ${n}개는 ⚙ 데이터·설정 → 되돌리기에 보관됩니다)` : ''}</p>
       <div class="gmembers" style="flex-direction:column;gap:4px">${state.draw.groups.map(g => `<span><b>${g.no}조</b> ${g.members.map(m => esc(m.name)).join(' · ')}</span>`).join('')}</div>
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="ok" data-act="lockdraw">✅ 이 조편성으로 확정하고 점수 입력 시작</button><button class="ghost" data-act="go" data-tab="p-draw">2. 조편성 화면 보기</button></div></div>`;
     return;
@@ -2484,6 +2570,7 @@ function renderHalf(which){
   if (ev.unresolved) tools += `<span class="badge tie">동률 ${ev.unresolved}건</span>`;
   tools += '<span class="spacer"></span>';
   if (state.demo && editable && !ev.allScored) tools += '<button class="ghost" data-act="demofill">🎲 데모: 남은 점수 채우기</button>';
+  if (u.sub === 'match') tools += `<button class="ghost" data-act="print" data-g="all">🖨 전체 조 출력</button>`;
   tools += `<button class="ghost" data-act="proj">빔</button>`;
   if (h.locked) tools += `<span class="badge lock">확정 ${fmtTime(h.lockedAt)}</span><button class="danger" data-act="unlock">확정 해제</button>` + (which === 'r1' ? '<button class="primary" data-act="go" data-tab="p-place">후반전 배치로 ▶</button>' : '<button class="primary" data-act="go" data-tab="p-award">시상·급수로 ▶</button>');
   else tools += `<button class="ok" data-act="lock" ${ev.ready ? '' : 'title="모든 점수 입력·동률 결정 후 확정"'}>${label} 확정(잠금)</button>`;
@@ -2523,6 +2610,7 @@ function halfClick(which, e){
   else if (act === 'unlock') unlockHalf(which, false);
   else if (act === 'go') showTab(t.dataset.tab);
   else if (act === 'lockdraw') { lockDraw(); renderHalf(which); }
+  else if (act === 'print') printGroups(which, t.dataset.g === 'all' ? null : [+t.dataset.g]);
   else if (act === 'proj') { if (u.sub === 'match' || u.sub === 'rank') { u.sub = 'call'; renderHalf(which); } setProjector(true); }
   else if (act === 'demofill') { const n = demoFill(which); renderHalf(which); toast(`데모 점수 ${n}경기 입력`); }
   else if (act === 'coin' || act === 'manual') openTie({ which, key: t.dataset.key, nos: t.dataset.nos.split(',').map(Number), title: t.dataset.title, manual: act === 'manual' });
@@ -2682,7 +2770,10 @@ function renderPlace(){
   const b = state.bracket; const locked = !!(b.place && b.place.locked);
   $$('#placeModeChips label').forEach(l => { const inp = l.querySelector('input'); const on = inp.value === (locked ? b.place.mode : state.settings.placeMode); l.classList.toggle('on', on); inp.checked = on; inp.disabled = locked; });
   const msg = $('#placeMsg');
-  $('#placeRule').innerHTML = state.settings.placeMode === 'poster' && !locked || (locked && b.place.mode === 'poster')
+  const pmode = locked ? b.place.mode : state.settings.placeMode;
+  $('#placeRule').innerHTML = pmode === 'rank'
+    ? '순위별(기본): 전반전 각 조 1위만 후반전 1조, 2위만 2조, 3위만 3조, 4위만 4조, 5위는 5조. 그보다 아래 순위(6위 등)는 5조에 함께 들어갑니다(28명 → 5·5·5·5·8명). 조 안 자리 순서는 점수(승률×1000+득실차+나이×0.03)순.'
+    : pmode === 'poster'
     ? '포스터 방식: 전반전 각 조 r위 → 후반전 r조. 조 크기(1단계와 같은 블록)에 맞추려고 넘치는 인원은 (전반 순위, 승률·득실·나이) 순으로 다음 조로 밀립니다.'
     : '엑셀 방식(기본): 전반전 각 조 1위 5명 → 후반전 1조(점수순 좌석), 나머지 전원을 조 구분 없이 점수(승률×1000+득실차+나이×0.03)순으로 1조 잔여석 → 2조 → … → 5조. 조 크기는 1단계와 같은 블록.';
   if (!b.r1 || !b.r1.locked) {

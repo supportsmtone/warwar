@@ -32,7 +32,8 @@ function makeScore(){
   return rnd() < 0.5 ? [21, lo] : [lo, 21];
 }
 const S = `JSON.parse(localStorage.getItem('uddt_draw_v1'))`;
-const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 대진표 화면을 PC·휴대폰 크기로 저장
+const SHOTS = process.env.SHOTS_DIR || '';
+const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로 만든 인쇄 화면을 PDF 로 저장   // 지정하면 후반전 조별 대진표 화면을 PC·휴대폰 크기로 저장
 
 (async () => {
   const f = path.join(profile, 'DevToolsActivePort'); let port;
@@ -106,9 +107,38 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
   const drawn = await ev(`${S}.draw.groups.flatMap(g=>g.members.map(m=>m.name))`);
   check('추첨 중복·누락 없음', new Set(drawn).size === N && drawn.length === N);
 
+  async function printCheck(which, label, tag){
+    await ev('window.__printed=0; window.print=()=>{window.__printed++}; true');
+    const gcount = await ev(`document.querySelectorAll('#p-${which} .gbox').length`);
+    const btns = await ev(`({one:document.querySelectorAll('#p-${which} .gbox [data-act="print"]').length, all:document.querySelectorAll('#p-${which} .rtools [data-act="print"][data-g="all"]').length})`);
+    check(`${label} 조별 출력 버튼 ${gcount}개 + 전체 출력`, btns.one === gcount && btns.all === 1, JSON.stringify(btns));
+    const want = await ev(`(()=>{const st=${S}, h=st.bracket.${which}, nm=new Map(st.participants.map(p=>[p.no,p.name])); return h.groups.map(g=>({no:g.no,n:g.members.length,names:g.members.map(m=>nm.get(m.no))}))})()`);
+    for (const g of want) {
+      await click(`#p-${which} .gbox [data-act="print"][data-g="${g.no}"]`); await sleep(150);
+      const got = await ev(`(()=>{const sh=document.querySelectorAll('#printArea .psheet'); const s=sh[0]; return {sheets:sh.length, printing:document.body.classList.contains('printing'), printed:window.__printed, title:s?s.querySelector('h1').textContent:'', rows:s?s.querySelectorAll('table.pm tbody tr').length:0, names:s?[...s.querySelectorAll('table.pr td.nm')].map(td=>td.textContent):[], mtxt:s?s.querySelector('table.pm').textContent:''}})()`);
+      const nameOk = JSON.stringify(got.names) === JSON.stringify(g.names) && g.names.every(n => got.mtxt.includes(n));
+      const tplLen = (await ev(`BracketCore.TEMPLATES[${g.n}].length`));
+      if (!(got.sheets === 1 && got.printing && got.printed >= 1 && got.title === `${label} ${g.no}조 대진표` && got.rows === tplLen && nameOk)) check(`${label} ${g.no}조 출력 내용`, false, JSON.stringify(got).slice(0, 200));
+      await ev(`window.dispatchEvent(new Event('afterprint')); true`);
+    }
+    check(`${label} 조별 출력(${want.length}개 조): 한 장·제목·경기 수·명단 일치, 인쇄 창 호출`, !fail.some(f => f.startsWith(label + ' ') && f.endsWith('출력 내용')));
+    check(`${label} 인쇄 끝나면 화면 원상 복귀`, !(await ev(`document.body.classList.contains('printing')`)) && /우당탕탕/.test(await ev('document.title')));
+    await click(`#p-${which} .rtools [data-act="print"][data-g="all"]`); await sleep(150);
+    const nAll = await ev(`document.querySelectorAll('#printArea .psheet').length`);
+    check(`${label} 전체 조 출력 = ${want.length}장`, nAll === want.length, String(nAll));
+    // 인쇄 미디어에서 출력 영역만 보이는지(앱 화면·MC 줄 숨김)
+    await send('Emulation.setEmulatedMedia', { media: 'print' });
+    const vis = await ev(`({area:document.getElementById('printArea').getClientRects().length>0, nav:document.querySelector('nav.tabs').getClientRects().length, panel:document.getElementById('p-${which}').getClientRects().length, mcbar:document.getElementById('mcbar').getClientRects().length, others:[...document.body.children].filter(e=>e.id!=='printArea'&&e.getClientRects().length).map(e=>e.tagName+'#'+e.id)})`);
+    await send('Emulation.setEmulatedMedia', { media: '' });
+    check(`${label} 인쇄 화면엔 대진표만(탭·화면 숨김)`, vis.area && !vis.nav && !vis.panel && !vis.mcbar && !vis.others.length, JSON.stringify(vis));
+    if (PDF_DIR) { const r = await send('Page.printToPDF', { paperWidth: 8.27, paperHeight: 11.69, preferCSSPageSize: true, printBackground: true });
+      if (r.result && r.result.data) fs.writeFileSync(path.join(PDF_DIR, `${tag}.pdf`), Buffer.from(r.result.data, 'base64')); else check(`${label} PDF 생성`, false, JSON.stringify(r.error || {})); }
+    await ev(`window.dispatchEvent(new Event('afterprint')); true`);
+  }
   async function playHalf(which, label, hash){
     await tab('p-' + which);
     check(`주소 #${hash}`, await ev('location.hash') === '#' + hash);
+    await printCheck(which, label, which + '_blank');
     const gb = await ev(`({boxes:document.querySelectorAll('#p-${which} .gbox').length, rows:document.querySelectorAll('#p-${which} tr[data-act="pad"]').length, heads:[...document.querySelectorAll('#p-${which} .gbox h3')].map(h=>h.textContent).join(',')})`);
     check(`${label} 기본 화면 = 조별 대진표 5개 표`, gb.boxes === 5 && gb.rows === EXPM, JSON.stringify(gb));
     const ids = await ev(`[...document.querySelectorAll('#p-${which} tr[data-act="pad"]')].map(r=>r.dataset.id)`);
@@ -131,6 +161,7 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
       if (row.replace(/\s/g, '') !== `${a}:${b}`) check(`${label} ${mid} 표 표시`, false, row);
     }
     if (which === 'r2') await shot('r2_full');
+    await printCheck(which, label, which + '_scored');
     const nScored = await ev(`Object.keys(${S}.bracket.${which}.scores).length`);
     check(`${label} ${ids.length}경기 숫자패드 입력·표 표시`, nScored === ids.length && ids.length === EXPM, `${nScored}/${ids.length}`);
     // 완전 동률이면 조별 대진표 안의 동전 던지기
@@ -167,7 +198,7 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
 
   await tab('p-place');
   check('주소 #placement', await ev('location.hash') === '#placement');
-  check('배치 방식 = 엑셀(각 조 1위→1조)', await ev(`${S}.settings.placeMode`) === 'excel');
+  check('배치 방식 = 순위별(각 조 1위→1조, 2위→2조 …)', await ev(`${S}.settings.placeMode`) === 'rank');
   await ev(`window.__spoken=new Set(); window.__ob && window.__ob.disconnect(); window.__ob=new MutationObserver(ms=>ms.forEach(m=>{ const t=m.target; if(t.classList&&t.classList.contains('speaking')&&t.dataset.no) window.__spoken.add(t.dataset.no) })); window.__ob.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']}); true`);
   let pt = 0;
   while (await ev(`!!document.querySelector('#placeMsg [data-act="coin"]')`) && pt < 10) { pt++;
@@ -219,12 +250,10 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
   }
   const g1 = standings(st.bracket.r1.groups, st.bracket.r1.scores, 'r1');
   const dupe1 = g1.some(g => g.some((p, i) => i && Math.abs(p.score - g[i - 1].score) < 1e-9));
-  const winners = g1.map(g => g[0]).sort((a, b) => b.score - a.score);
-  const rest = g1.flatMap(g => g.slice(1)).sort((a, b) => b.score - a.score);
-  const order = winners.concat(rest).map(p => p.no); let k = 0;
-  const exp = SIZES.map(s => order.slice(k, k += s).sort((a, b) => a - b));
+  // 순위별: r위 → r조(1~4조), 5위 이하 → 5조
+  const exp = [0, 1, 2, 3, 4].map(gi => g1.flatMap(g => g.filter((p, i) => gi < 4 ? i === gi : i >= 4)).map(p => p.no).sort((a, b) => a - b));
   const app = st.bracket.r2.groups.map(g => g.members.map(m => m.no).sort((a, b) => a - b));
-  check('후반전 배치 = 독립 계산(엑셀 방식)', JSON.stringify(exp) === JSON.stringify(app) || dupe1, dupe1 ? '전반 완전 동률 있음(동전 결정) — 참고' : '');
+  check(`후반전 배치 = 독립 계산(순위별, ${app.map(g => g.length).join('·')}명)`, JSON.stringify(exp) === JSON.stringify(app) && JSON.stringify(app.map(g => g.length)) === JSON.stringify(N === 28 ? [5, 5, 5, 5, 8] : [5, 5, 5, 5, 7]), dupe1 ? '전반 완전 동률은 화면 동전 순서 적용' : '');
   const g2 = standings(st.bracket.r2.groups, st.bracket.r2.scores, 'r2');
   if (coinTies) log(`   (완전 동률 비교 ${coinTies}회 — 동전 결정 순서 적용)`);
   const fin = []; g2.forEach((g, gi) => g.forEach((p, i) => fin.push({ name: p.name, group: gi + 1, rank: i + 1, overall: fin.length + 1 })));
@@ -259,7 +288,7 @@ const SHOTS = process.env.SHOTS_DIR || '';   // 지정하면 후반전 조별 �
     check(`${label} 개인 결과 ${N}명: 승·패·득실·경기 4개 = 독립 계산`, prow.length === N && bad === 0, `불일치 ${bad}`);
     if (w === 'r1') {
       const nextOk = flat.every(x => { const r = prow.find(y => y.name === x.name); const gi = exp.findIndex(arr => arr.includes(x.no)); return r && r.cells[6] === `${gi + 1}조`; });
-      check('전반전 개인 결과의 「후반전 조」 = 배치 독립 계산', nextOk || dupe1, dupe1 ? '전반 완전 동률 — 참고' : '');
+      check('전반전 개인 결과의 「후반전 조」 = 배치 독립 계산', nextOk);
     } else {
       const grOk = fin.every(x => { const r = prow.find(y => y.name === x.name); return r && r.cells[7] === grade(x.overall) && (r.cells[8] || '') === (prize(x) || ''); });
       check('후반전 개인 결과의 급수·상품 = 독립 계산', grOk);
