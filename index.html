@@ -1259,8 +1259,8 @@ const SYNC_DB = (() => {   // 검증용: 이 기기(localhost)에서 연 화면�
   return (b && loc && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/v1\/projects\/uddt-warwar-1114\/databases\/\(default\)\/documents$/.test(b)) ? b : 'https://firestore.googleapis.com/v1/projects/uddt-warwar-1114/databases/(default)/documents';
 })();
 const SYNC_DOC = 'projects/uddt-warwar-1114/databases/(default)/documents';
-const OP_KEY = 'uddt_op_code', SYNC_BASE_KEY = 'uddt_sync_base';
-const Sync = { role: 'local', on: false, code: '', base: null, baseTime: '', busy: false, dirty: false, timer: 0, pushTimer: 0, lastOk: 0, lastChange: 0, err: '', state: '' };
+const OP_KEY = 'uddt_op_code', SYNC_BASE_KEY = 'uddt_sync_base', DEV_KEY = 'uddt_dev_key', DEV_OK = 'uddt_dev_ok';
+const Sync = { role: 'local', on: false, code: '', devK: '', devH: '', devOk: false, pending: false, base: null, baseTime: '', busy: false, dirty: false, timer: 0, pushTimer: 0, lastOk: 0, lastChange: 0, err: '', state: '' };
 function stableStr(x){ return x === undefined ? undefined : JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.keys(v).sort().reduce((o, kk) => { o[kk] = v[kk]; return o; }, {}) : v); }
 function isPlainObj(x){ return !!x && typeof x === 'object' && !Array.isArray(x); }
 /* 3방향 합치기: o=마지막 공용본, a=이 기기, b=지금 공용본. 한쪽만 바꾼 칸은 바꾼 쪽, 둘 다 바꾼 같은 칸은 이 기기 입력 */
@@ -1298,10 +1298,50 @@ async function syncGet(full){
   return { exists: true, time: d.updateTime, obj };
 }
 function syncOpWrite(code, v, now){ return { update: { name: `${SYNC_DOC}/op/${code}`, fields: { v: { integerValue: v }, at: { timestampValue: now } } } }; }
+/* 승인 기기: 이 기기가 스스로 만든 키(k)의 sha256 해시로 op/<해시> 를 쓴다. 키는 이 기기 밖으로 나가지 않고(규칙이 해시만 대조), 총괄이사가 dev/<해시> 로 승인 */
+function syncMyOpWrite(v, now){
+  if (Sync.code) return syncOpWrite(Sync.code, v, now);
+  return { update: { name: `${SYNC_DOC}/op/${Sync.devH}`, fields: { v: { integerValue: v }, at: { timestampValue: now }, k: { stringValue: Sync.devK } } } };
+}
+async function sha256hex(t){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+async function syncDevInit(){
+  let k = ''; try { k = localStorage.getItem(DEV_KEY) || ''; Sync.devOk = localStorage.getItem(DEV_OK) === '1'; } catch (e) {}
+  if (!/^[0-9a-f]{64}$/.test(k) || !(window.crypto && crypto.subtle)) { Sync.devOk = false; return; }
+  Sync.devK = k; Sync.devH = await sha256hex(k);
+  if (!Sync.devOk) Sync.pending = true;
+}
+function syncDevNo(){ return Sync.devH ? Sync.devH.slice(0, 6).toUpperCase() : ''; }
+/* 승인 요청: 키 만들기(처음 한 번) → req/<해시> 남기기. 점수를 입력한 기기는 자동으로 요청한다 */
+async function syncRequestDev(){
+  if (!(window.crypto && crypto.subtle && crypto.getRandomValues)) { toast('이 브라우저는 승인 요청을 지원하지 않습니다 · 운영자 코드를 입력해 주세요'); return; }
+  if (!Sync.devK) {
+    const b = new Uint8Array(32); crypto.getRandomValues(b);
+    const k = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+    try { localStorage.setItem(DEV_KEY, k); localStorage.removeItem(DEV_OK); } catch (e) { toast('이 브라우저에 저장할 수 없어 승인 요청을 못 합니다'); return; }
+    Sync.devK = k; Sync.devH = await sha256hex(k); Sync.devOk = false;
+  }
+  Sync.pending = true; syncPill();
+  try {
+    await fetch(SYNC_DB + '/req?documentId=' + Sync.devH, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { at: { timestampValue: new Date().toISOString() }, ua: { stringValue: String(navigator.userAgent || '').slice(0, 190) } } }) });   // 이미 요청했으면 409(정상)
+  } catch (e) {}
+  syncCheckDev();
+}
+/* 승인 확인: dev/<해시> 가 생기면 운영자 기기로 전환 */
+async function syncCheckDev(){
+  if (!Sync.pending || !Sync.devH || Sync.role === 'op') return;
+  let r; try { r = await fetch(SYNC_DB + '/dev/' + Sync.devH + '?mask.fieldPaths=v', { cache: 'no-store' }); } catch (e) { return; }
+  if (!r.ok) return;
+  try { localStorage.setItem(DEV_OK, '1'); } catch (e) {}
+  Sync.devOk = true; Sync.pending = false; Sync.role = 'op'; Sync.base = null; Sync.baseTime = ''; syncLoadBase();
+  load(); renderAll(); syncRoleUi();
+  toast('이 기기가 운영자 기기로 승인됐습니다 · 입력하면 모든 휴대폰에 바로 보입니다', 4000);
+  await syncInitOp();
+}
 async function syncCommit(pub, preTime){
   const v = String(Date.now() * 1000 + Math.floor(Math.random() * 1000)), now = new Date().toISOString();
   const by = (matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mobile' : 'pc';
-  const writes = [syncOpWrite(Sync.code, v, now), { update: { name: `${SYNC_DOC}/pub/state`, fields: { v: { integerValue: v }, json: { stringValue: JSON.stringify({ app: 'uddt-sync', ver: 1, state: pub }) }, at: { timestampValue: now }, by: { stringValue: by } } }, currentDocument: preTime ? { updateTime: preTime } : { exists: false } }];
+  const writes = [syncMyOpWrite(v, now), { update: { name: `${SYNC_DOC}/pub/state`, fields: { v: { integerValue: v }, json: { stringValue: JSON.stringify({ app: 'uddt-sync', ver: 1, state: pub }) }, at: { timestampValue: now }, by: { stringValue: Sync.code ? by : Sync.devH } } }, currentDocument: preTime ? { updateTime: preTime } : { exists: false } }];
   const r = await fetch(SYNC_DB + ':commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ writes }) });
   if (r.ok) { const d = await r.json(); return { ok: true, time: d.writeResults[1].updateTime }; }
   return { ok: false, status: r.status };
@@ -1323,6 +1363,7 @@ function syncApply(pub){
   syncRoleUi();
 }
 function syncChanged(){
+  if (Sync.on && Sync.role === 'local' && !Sync.devK && !Sync.reqBusy && state.draw && state.participants.length) { Sync.reqBusy = true; syncRequestDev().finally(() => { Sync.reqBusy = false; }); }   // 이 기기에서 추첨 → 자동 승인 요청
   if (Sync.role !== 'op') return;
   Sync.dirty = true; clearTimeout(Sync.pushTimer); Sync.pushTimer = setTimeout(syncPush, 600); syncPill();
 }
@@ -1346,7 +1387,7 @@ async function syncPush(){
       if (remPub && stableStr(remPub) === stableStr(mine)) { Sync.base = remPub; Sync.baseTime = rem.time; syncSaveBase(); Sync.lastOk = Date.now(); Sync.err = ''; break; }
       const res = await syncCommit(mine, rem.exists ? rem.time : null);
       if (res.ok) { Sync.base = mine; Sync.baseTime = res.time; syncSaveBase(); Sync.lastOk = Sync.lastChange = Date.now(); Sync.err = ''; break; }
-      if (res.status === 403) { Sync.err = '운영자 코드가 맞지 않습니다(코드 다시 입력)'; break; }
+      if (res.status === 403) { Sync.err = Sync.code ? '운영자 코드가 맞지 않습니다(코드 다시 입력)' : '운영자 승인이 취소됐습니다'; break; }
       if (res.status !== 400 && res.status !== 409) throw new Error('쓰기 ' + res.status);
       if (i === 5) throw new Error('동시 입력이 몰립니다');
     }
@@ -1359,6 +1400,7 @@ async function syncPush(){
 }
 async function syncPoll(){
   clearTimeout(Sync.timer);
+  if (Sync.on && !document.hidden && !Sync.busy && Sync.pending && Sync.role !== 'op') { await syncCheckDev(); if (Sync.role === 'op') { Sync.timer = setTimeout(syncPoll, 5000); return; } }
   if (Sync.on && !document.hidden && !Sync.busy) {
     try {
       const head = await syncGet(false);
@@ -1378,7 +1420,7 @@ async function syncPoll(){
     syncPill();
   }
   const quiet = Date.now() - (Sync.lastChange || 0) > 300000;
-  const ms = Sync.role === 'op' ? 5000 : Sync.role === 'viewer' ? (quiet ? 15000 : 8000) : 20000;   // 무료 사용량(하루 읽기 5만) 안: 28명이 3시간 계속 봐도 약 2.5만
+  const ms = Sync.role === 'op' ? 5000 : Sync.pending ? 6000 : Sync.role === 'viewer' ? (quiet ? 15000 : 8000) : 20000;   // 무료 사용량(하루 읽기 5만) 안: 28명이 3시간 계속 봐도 약 2.5만
   if (Sync.on) Sync.timer = setTimeout(syncPoll, ms);
 }
 /* 운영자 기기 연결: 공용본과 이 기기 데이터를 맞춘다 */
@@ -1417,7 +1459,8 @@ async function syncEnterCode(code){
   return true;
 }
 function syncLogout(){
-  try { localStorage.removeItem(OP_KEY); localStorage.removeItem(SYNC_BASE_KEY); } catch (e) {}
+  try { localStorage.removeItem(OP_KEY); localStorage.removeItem(SYNC_BASE_KEY); localStorage.removeItem(DEV_KEY); localStorage.removeItem(DEV_OK); } catch (e) {}
+  Sync.devK = ''; Sync.devH = ''; Sync.devOk = false; Sync.pending = false;
   Sync.code = ''; Sync.role = 'local'; Sync.base = null; Sync.baseTime = ''; Sync.dirty = false; clearTimeout(Sync.pushTimer);
   syncRoleUi(); syncPoll();                                     // 공용본이 있으면 보기 전용으로 바뀐다
 }
@@ -1433,7 +1476,8 @@ function syncPill(){
   } else if (Sync.role === 'viewer') {
     if (Sync.err) { cls = 'bad'; txt = '📡 ' + Sync.err; }
     else txt = '📡 실시간 · ' + hm(Sync.lastOk) + ' 확인';
-  } else { cls = 'off'; txt = '💾 이 기기에만 저장 · 운영자 연결'; }
+  } else if (Sync.pending) { cls = 'wait'; txt = '⏳ 운영자 승인 대기 · 기기번호 ' + syncDevNo() + (Sync.role === 'viewer' ? ' · 지금은 보기 전용' : ' · 승인되면 자동 공유'); }
+  else { cls = 'off'; txt = '💾 이 기기에만 저장 · 운영자 연결'; }
   el.className = 'syncpill s-' + cls; el.textContent = txt;
 }
 function syncRoleUi(){
@@ -1468,17 +1512,27 @@ function syncStart(){
   try { Sync.code = localStorage.getItem(OP_KEY) || ''; } catch (e) {}
   const opArg = qs.get('op');
   if (opArg) { try { const u = new URL(location.href); u.searchParams.delete('op'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {} }
-  if (Sync.code) { Sync.role = 'op'; syncLoadBase(); }
   const pill = document.getElementById('syncPill');
   if (pill) pill.addEventListener('click', () => {
     if (Sync.role === 'op') { if (confirm('이 기기의 운영자 연결을 끌까요?\n(이 기기 데이터는 그대로 남고, 화면은 공용 점수판 보기로 바뀝니다)')) syncLogout(); }
-    else { const c = prompt('운영자 코드(점수 입력 담당만)'); if (c) syncEnterCode(c); }
+    else {
+      const c = prompt('운영자 코드(점수 입력 담당만)' + (Sync.pending ? '\n\n승인 대기 중 · 기기번호 ' + syncDevNo() : '\n\n코드가 없으면 비워 두고 [확인] → 이 기기 승인 요청(기기번호 표시)'));
+      if (c) syncEnterCode(c);
+      else if (c === '') syncRequestDev().then(() => toast('승인 요청 · 기기번호 ' + syncDevNo() + ' · 총괄이사 승인 뒤 자동으로 운영자 기기가 됩니다', 5000));
+    }
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPoll(); });
   syncRoleUi();
-  if (opArg && opArg.trim().toLowerCase() !== Sync.code) syncEnterCode(opArg).then(ok => { if (!ok) { if (Sync.role === 'op') syncInitOp().then(syncPoll); else syncPoll(); } });
-  else if (Sync.role === 'op') syncInitOp().then(syncPoll);
-  else syncPoll();
+  (async () => {
+    try { await syncDevInit(); } catch (e) {}
+    if (Sync.code || Sync.devOk) { Sync.role = 'op'; syncLoadBase(); }
+    syncRoleUi();
+    // 이 기기에 추첨 데이터가 있고(점수 입력 기기) 아직 운영자가 아니면 자동으로 승인 요청 — 휴대폰 보기 기기는 데이터가 없어 요청하지 않는다
+    if (!opArg && Sync.role !== 'op' && !Sync.devK && state.draw && state.participants.length) { Sync.reqBusy = true; try { await syncRequestDev(); } catch (e) {} Sync.reqBusy = false; }
+    if (opArg && opArg.trim().toLowerCase() !== Sync.code) syncEnterCode(opArg).then(ok => { if (!ok) { if (Sync.role === 'op') syncInitOp().then(syncPoll); else syncPoll(); } });
+    else if (Sync.role === 'op') syncInitOp().then(syncPoll);
+    else syncPoll();
+  })();
 }
 function normalizeState(s){
   const d = defaultState();
