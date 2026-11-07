@@ -208,7 +208,7 @@ body.projector #exitProj{display:block}
 table.hist{width:100%;border-collapse:collapse;font-size:.92rem}
 table.hist th,table.hist td{padding:6px;border-bottom:1px solid var(--line);text-align:left}
 table.hist tr.cur td{color:var(--accent);font-weight:700}
-#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:999px;z-index:90;display:none;max-width:92vw;text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:999px;z-index:90;display:none;max-width:92vw;text-align:center}
 #toast.show{display:block}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:20px}
 
@@ -226,6 +226,13 @@ header .brand b{font-weight:900}
 nav.tabs button{box-shadow:2px 2px 0 rgba(0,0,0,.45)}
 nav.tabs button.active{transform:rotate(-2deg);box-shadow:3px 3px 0 #000}
 nav.tabs button.optab{border:1px dashed var(--accent2)}
+/* 실시간 공유 표시 · 보기 전용 */
+.syncpill{font-size:.8rem;font-weight:700;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--text);box-shadow:none;transform:none;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#syncPill.syncpill{background:rgba(0,0,0,.35);box-shadow:none;transform:none}#syncPill.s-ok{border-color:#3ddc97;color:#3ddc97}#syncPill.s-wait{border-color:var(--accent);color:var(--accent)}#syncPill.s-bad{border-color:#ff5d73;color:#ff8a9a}#syncPill.s-off{color:var(--muted)}
+body.viewer nav.tabs button[data-tab="p-part"],body.viewer nav.tabs button[data-tab="p-fine"],body.viewer nav.tabs button[data-tab="p-data"],body.viewer #mcbar{display:none!important}
+body.viewer tr[data-act="pad"],body.viewer .mcard{cursor:default}
+body.viewer #effectChips,body.viewer label:has(#soundToggle),body.viewer #seedRow{display:none!important}
+body.viewer [data-act="lock"],body.viewer [data-act="unlock"],body.viewer [data-act="coin"],body.viewer [data-act="manual"],body.viewer [data-act="retie"],body.viewer [data-act="demofill"],body.viewer [data-act="lockdraw"],body.viewer #btnDraw,body.viewer #btnSkip,body.viewer #btnLock,body.viewer #btnUnlock,body.viewer #btnReplay,body.viewer #btnPlaceShow,body.viewer #btnPlaceSkip,body.viewer #btnPlaceLock,body.viewer #btnPlaceUnlock{display:none!important}
 button.primary{transform:rotate(-1.2deg);box-shadow:3px 3px 0 #000;letter-spacing:-.01em}
 button.primary:hover:not(:disabled){transform:rotate(1deg) scale(1.03)}
 button.primary:active:not(:disabled),button.ok:active:not(:disabled),button.danger:active:not(:disabled){transform:translate(2px,2px);box-shadow:none}
@@ -474,6 +481,19 @@ body.projector #p-fine{display:none!important}
 table.final{width:100%;border-collapse:collapse}
 table.final th,table.final td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
 table.final td.num{text-align:center;font-weight:900}
+table.final td.mo{display:none}
+@media (max-width:560px){   /* 휴대폰: 한 사람 = 카드 한 장(순위·이름·급수 / 조·성적·상품 / 전반 결과) */
+  table.final thead{display:none}
+  table.final tr{display:grid;grid-template-columns:2.2em 1fr auto;column-gap:10px;row-gap:3px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line)}
+  table.final td{border:0;padding:0}
+  table.final td.num{grid-column:1;grid-row:1 / span 2;font-size:1.1rem}
+  table.final td.nm{grid-column:2;grid-row:1;font-size:1.05rem}
+  table.final td.gr{grid-column:3;grid-row:1}
+  table.final td.grp,table.final td.wl,table.final td.pz{display:none}
+  table.final td.mo{display:block;grid-column:2 / 4;grid-row:2;font-size:.86rem;color:var(--muted)}
+  table.final td.mo .pzm{color:var(--accent)}
+  table.final td.r1{grid-column:2 / 4;grid-row:3;font-size:.76rem;color:var(--muted)}
+}
 .gbadge{display:inline-block;min-width:54px;text-align:center;padding:3px 10px;border-radius:999px;font-weight:900;background:var(--card2)}
 .gbadge[data-g="자강"]{background:linear-gradient(135deg,#fff3a6,#e0a422);color:#3a2400}
 .gbadge[data-g="준자강"]{background:linear-gradient(135deg,#f2f2f2,#a9a9b8);color:#111}
@@ -511,12 +531,26 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 .kk{position:absolute;font-weight:900;color:#ff2e5f;font-size:2.6rem;text-shadow:3px 3px 0 #fff;animation:kkUp 1.6s ease-out both;z-index:4}
 @keyframes kkUp{0%{transform:translateY(20px) scale(.4);opacity:0}25%{opacity:1;transform:translateY(0) scale(1.1)}100%{transform:translateY(-120px) scale(1) rotate(-10deg);opacity:0}}
 @media (max-width:700px){
-  header{position:static}
-  nav.tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-  nav.tabs button{flex:none}
+  header{position:static;padding:8px 12px 6px;gap:6px}
+  header .brand{gap:8px;min-width:0;flex:1 1 auto}
+  header .brand>div{min-width:0}
+  header .brand b{font-size:.98rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .brand span{font-size:.72rem;line-height:1.3}
+  .ci-mini{width:32px}
+  .syncpill{font-size:.74rem;padding:4px 9px;order:3;width:100%;text-align:center}
+  nav.tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;padding:2px 2px 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{flex:none;min-height:38px;padding:7px 11px;font-size:.92rem}
+  .mcbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px}
+  .mcbar::-webkit-scrollbar{display:none}
+  .mcbar button{flex:none;min-height:32px;font-size:.8rem}
+  .subtabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}
+  .subtabs::-webkit-scrollbar{display:none}
+  .subtabs button{flex:none;min-height:38px;padding:6px 11px}
   .lips{right:-30px;bottom:-95px;width:130px}
   .pcard{width:88vw}
   .show-top button{min-height:38px;padding:6px 10px}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom, 0px))}
 }
 .prizebox{background:rgba(0,0,0,.45);border:3px solid var(--accent);border-radius:18px;padding:20px 26px;max-width:min(900px,92vw);font-size:clamp(16px,2vw,24px)}
 .prizebox h2{color:var(--accent);font-size:1.6em}
@@ -531,6 +565,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <body data-theme="A">
 <header>
   <div class="brand"><img class="ci-mini" src="assets/ci.png" alt="" width="40" height="35" onerror="this.remove()"><div><b>우당탕탕요절복통 자체대회 · 대진표</b><span>2026-11-14(토) · 오프라인 동작 · 저장: 이 기기·이 브라우저</span></div></div>
+  <button type="button" id="syncPill" class="syncpill s-off" hidden></button>
   <nav class="tabs" id="ptabs">
     <button data-tab="p-intro">🏠 인트로</button>
     <button data-tab="p-part">1. 참가자</button>
@@ -693,7 +728,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
     </div>
     <div class="box">
       <h2>데이터</h2>
-      <p class="muted small">저장 위치는 <b>이 기기 · 이 브라우저</b>(localStorage)입니다. 다른 기기에서 열면 데이터가 없습니다. 추첨 확정 뒤 JSON 을 내보내 보관하세요(내보내기 파일에 나이는 포함되지 않습니다).</p>
+      <p class="muted small">저장 위치는 <b>이 기기 · 이 브라우저</b>(localStorage)입니다. 위쪽 표시줄을 눌러 <b>운영자 코드</b>로 연결한 기기는 입력이 공용 점수판에 올라가 <b>모든 휴대폰에서 실시간</b>으로 보입니다(다른 기기는 보기 전용). 추첨 확정 뒤 JSON 을 내보내 보관하세요(내보내기 파일에 나이는 포함되지 않습니다).</p>
       <div class="row">
         <button class="primary" id="btnExport">JSON 내보내기</button>
         <button id="btnImport">JSON 불러오기</button>
@@ -1208,7 +1243,242 @@ let state = defaultState();
 let nextNo = 1;
 
 function save(){
+  if (Sync.role === 'viewer') return;   // 보기 전용 기기는 이 기기 저장소를 건드리지 않는다(공용 점수판만 표시)
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { toast('저장 실패: ' + e.message); }
+  syncChanged();
+}
+
+/* ================= 실시간 공유(공용 점수판) — 11/7 대표 「점수 입력하면 누구나 볼 수 있도록」 =================
+   - 공용 저장소: 써포츠와 무관한 별도 Firebase 프로젝트 uddt-warwar-1114 의 Firestore 문서 pub/state(누구나 읽기)
+   - 쓰기는 운영자 코드를 넣은 기기만(규칙: 같은 일괄 쓰기에서 op/<코드> 를 새 값으로 바꿀 때만 허용, 코드는 규칙 파일에만 있음)
+   - 운영자 기기가 둘 이상이어도 마지막 공용본 기준 3방향 합치기(경기별 점수 칸 단위)라 서로 덮어쓰지 않는다
+   - 공용본에는 벌금·출석·추첨 기록을 넣지 않는다. 나이는 순서만 남긴 값(1,2,3…)으로 바꾼다(화면엔 나이 미표시, 동점 순서 동일)
+   - 네트워크가 끊겨도 운영자 기기는 지금처럼 이 기기에 저장하고, 연결되면 다시 올린다 */
+const SYNC_DB = (() => {   // 검증용: 이 기기(localhost)에서 연 화면만 ?syncbase=로컬 에뮬레이터 주소를 쓸 수 있다
+  const b = qs.get('syncbase'), loc = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  return (b && loc && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/v1\/projects\/uddt-warwar-1114\/databases\/\(default\)\/documents$/.test(b)) ? b : 'https://firestore.googleapis.com/v1/projects/uddt-warwar-1114/databases/(default)/documents';
+})();
+const SYNC_DOC = 'projects/uddt-warwar-1114/databases/(default)/documents';
+const OP_KEY = 'uddt_op_code', SYNC_BASE_KEY = 'uddt_sync_base';
+const Sync = { role: 'local', on: false, code: '', base: null, baseTime: '', busy: false, dirty: false, timer: 0, pushTimer: 0, lastOk: 0, lastChange: 0, err: '', state: '' };
+function stableStr(x){ return x === undefined ? undefined : JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.keys(v).sort().reduce((o, kk) => { o[kk] = v[kk]; return o; }, {}) : v); }
+function isPlainObj(x){ return !!x && typeof x === 'object' && !Array.isArray(x); }
+/* 3방향 합치기: o=마지막 공용본, a=이 기기, b=지금 공용본. 한쪽만 바꾼 칸은 바꾼 쪽, 둘 다 바꾼 같은 칸은 이 기기 입력 */
+function merge3(o, a, b){
+  const sa = stableStr(a), sb = stableStr(b);
+  if (sa === sb) return a;
+  const so = stableStr(o);
+  if (so === sa) return b;
+  if (so === sb) return a;
+  if (isPlainObj(a) && isPlainObj(b)) {
+    const out = {}, oo = isPlainObj(o) ? o : {};
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) { const v = merge3(oo[k], a[k], b[k]); if (v !== undefined) out[k] = v; }
+    return out;
+  }
+  return a;
+}
+function syncPublic(s){
+  const o = JSON.parse(JSON.stringify(s));
+  delete o.history; if (o.bracket) delete o.bracket.fines;
+  const ages = [...new Set((o.participants || []).map(p => p.age).filter(a => a > 0))].sort((x, y) => x - y);
+  if (ages.length && (ages[ages.length - 1] - ages[0]) * 0.03 < 1) o.participants.forEach(p => { if (p.age > 0) p.age = ages.indexOf(p.age) + 1; });
+  return o;
+}
+function syncValid(rem){ return !!(rem && rem.obj && rem.obj.app === 'uddt-sync' && rem.obj.state && Array.isArray(rem.obj.state.participants)); }
+function syncBusyUi(){
+  return (typeof Anim !== 'undefined' && Anim.running) || (typeof Fx !== 'undefined' && Fx.running) || !!document.querySelector('.modal:not([hidden])')
+    || !$('#show').hidden || (typeof Announce !== 'undefined' && !!Announce.kind) || document.body.classList.contains('printing');
+}
+async function syncGet(full){
+  const r = await fetch(SYNC_DB + '/pub/state' + (full ? '' : '?mask.fieldPaths=v'), { cache: 'no-store' });
+  if (r.status === 404) return { exists: false };
+  if (!r.ok) throw new Error('읽기 ' + r.status);
+  const d = await r.json(), f = d.fields || {};
+  let obj = null; if (full && f.json) { try { obj = JSON.parse(f.json.stringValue); } catch (e) {} }
+  return { exists: true, time: d.updateTime, obj };
+}
+function syncOpWrite(code, v, now){ return { update: { name: `${SYNC_DOC}/op/${code}`, fields: { v: { integerValue: v }, at: { timestampValue: now } } } }; }
+async function syncCommit(pub, preTime){
+  const v = String(Date.now() * 1000 + Math.floor(Math.random() * 1000)), now = new Date().toISOString();
+  const by = (matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mobile' : 'pc';
+  const writes = [syncOpWrite(Sync.code, v, now), { update: { name: `${SYNC_DOC}/pub/state`, fields: { v: { integerValue: v }, json: { stringValue: JSON.stringify({ app: 'uddt-sync', ver: 1, state: pub }) }, at: { timestampValue: now }, by: { stringValue: by } } }, currentDocument: preTime ? { updateTime: preTime } : { exists: false } }];
+  const r = await fetch(SYNC_DB + ':commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ writes }) });
+  if (r.ok) { const d = await r.json(); return { ok: true, time: d.writeResults[1].updateTime }; }
+  return { ok: false, status: r.status };
+}
+function syncSaveBase(){ try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify({ base: Sync.base, time: Sync.baseTime })); } catch (e) {} }
+function syncLoadBase(){ try { const b = JSON.parse(localStorage.getItem(SYNC_BASE_KEY) || 'null'); if (b && b.base) { Sync.base = b.base; Sync.baseTime = b.time || ''; } } catch (e) {} }
+/* 공용본을 화면 상태로. 운영자 기기는 이 기기만의 것(벌금·출석·추첨 기록·실제 나이)을 지키고 이 기기에도 저장 */
+function syncApply(pub){
+  const old = state, ns = normalizeState(JSON.parse(JSON.stringify(pub)));
+  if (Sync.role !== 'viewer') {
+    ns.history = old.history; ns.bracket.fines = old.bracket.fines;
+    const ages = new Map(old.participants.filter(p => p.age > 0).map(p => [p.no + '|' + p.name, p.age]));
+    ns.participants.forEach(p => { const a = ages.get(p.no + '|' + p.name); if (a) p.age = a; });
+  }
+  state = ns; nextNo = state.participants.reduce((m, p) => Math.max(m, p.no), 0) + 1;
+  if (Sync.role !== 'viewer') { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+  const cur = currentTab();
+  renderAll(); if (cur) onTabShown(cur);
+  syncRoleUi();
+}
+function syncChanged(){
+  if (Sync.role !== 'op') return;
+  Sync.dirty = true; clearTimeout(Sync.pushTimer); Sync.pushTimer = setTimeout(syncPush, 600); syncPill();
+}
+async function syncPush(){
+  if (Sync.role !== 'op') return;
+  if (Sync.busy) { Sync.dirty = true; return; }
+  if (syncBusyUi()) { clearTimeout(Sync.pushTimer); Sync.pushTimer = setTimeout(syncPush, 1500); return; }
+  Sync.busy = true; Sync.dirty = false; Sync.state = 'push'; syncPill();
+  let again = false;
+  try {
+    for (let i = 0; i < 6; i++) {
+      // 첫 시도는 마지막으로 맞춘 공용본 기준으로 바로 쓴다(읽기 아낌). 그사이 다른 기기가 썼으면 거절(400) → 읽어서 합친 뒤 다시
+      const rem = (i === 0 && Sync.base && Sync.baseTime) ? { exists: true, time: Sync.baseTime, obj: { app: 'uddt-sync', ver: 1, state: Sync.base } } : await syncGet(true);
+      const remPub = syncValid(rem) ? rem.obj.state : null;
+      let mine = syncPublic(state);
+      if (remPub && rem.time !== Sync.baseTime) {               // 그사이 다른 운영자 기기가 올림 → 합치기
+        const merged = merge3(Sync.base || remPub, mine, remPub);
+        if (stableStr(merged) !== stableStr(mine)) { if (syncBusyUi()) { again = true; break; } syncApply(merged); }
+        mine = syncPublic(state);
+      }
+      if (remPub && stableStr(remPub) === stableStr(mine)) { Sync.base = remPub; Sync.baseTime = rem.time; syncSaveBase(); Sync.lastOk = Date.now(); Sync.err = ''; break; }
+      const res = await syncCommit(mine, rem.exists ? rem.time : null);
+      if (res.ok) { Sync.base = mine; Sync.baseTime = res.time; syncSaveBase(); Sync.lastOk = Sync.lastChange = Date.now(); Sync.err = ''; break; }
+      if (res.status === 403) { Sync.err = '운영자 코드가 맞지 않습니다(코드 다시 입력)'; break; }
+      if (res.status !== 400 && res.status !== 409) throw new Error('쓰기 ' + res.status);
+      if (i === 5) throw new Error('동시 입력이 몰립니다');
+    }
+  } catch (e) { Sync.err = '전송 실패 — 자동 재시도(' + e.message + ')'; again = true; }
+  finally {
+    Sync.busy = false; Sync.state = '';
+    if (again || Sync.dirty) { Sync.dirty = true; clearTimeout(Sync.pushTimer); Sync.pushTimer = setTimeout(syncPush, again ? 4000 : 600); }
+    syncPill();
+  }
+}
+async function syncPoll(){
+  clearTimeout(Sync.timer);
+  if (Sync.on && !document.hidden && !Sync.busy) {
+    try {
+      const head = await syncGet(false);
+      Sync.lastOk = Date.now(); if (Sync.role !== 'op' || !Sync.dirty) Sync.err = '';
+      if (head.exists && head.time !== Sync.baseTime && !syncBusyUi() && !(Sync.role === 'op' && (Sync.dirty || Sync.busy))) {
+        const rem = await syncGet(true);
+        if (!syncValid(rem)) Sync.baseTime = rem.time || '';
+        else if (Sync.role === 'op') {
+          const mine = syncPublic(state), merged = Sync.base ? merge3(Sync.base, mine, rem.obj.state) : rem.obj.state;
+          if (stableStr(merged) !== stableStr(mine)) syncApply(merged);
+          Sync.base = rem.obj.state; Sync.baseTime = rem.time; syncSaveBase(); Sync.lastChange = Date.now();
+        } else {
+          Sync.role = 'viewer'; syncApply(rem.obj.state); Sync.base = rem.obj.state; Sync.baseTime = rem.time; Sync.lastChange = Date.now();
+        }
+      }
+    } catch (e) { Sync.err = '연결 끊김 — 다시 연결 중'; }
+    syncPill();
+  }
+  const quiet = Date.now() - (Sync.lastChange || 0) > 300000;
+  const ms = Sync.role === 'op' ? 5000 : Sync.role === 'viewer' ? (quiet ? 15000 : 8000) : 20000;   // 무료 사용량(하루 읽기 5만) 안: 28명이 3시간 계속 봐도 약 2.5만
+  if (Sync.on) Sync.timer = setTimeout(syncPoll, ms);
+}
+/* 운영자 기기 연결: 공용본과 이 기기 데이터를 맞춘다 */
+async function syncInitOp(){
+  Sync.busy = true; Sync.state = 'push'; syncPill();
+  try {
+    const rem = await syncGet(true); const remPub = syncValid(rem) ? rem.obj.state : null;
+    const mine = syncPublic(state);
+    if (!remPub) { Sync.base = null; Sync.baseTime = rem.exists ? rem.time : ''; Sync.busy = false; Sync.dirty = true; await syncPush(); return; }
+    if (Sync.base) {                                           // 전에 연결한 적 있는 기기: 합치기
+      const merged = merge3(Sync.base, mine, remPub);
+      if (stableStr(merged) !== stableStr(mine)) syncApply(merged);
+      Sync.base = remPub; Sync.baseTime = rem.time; syncSaveBase();
+      if (stableStr(merged) !== stableStr(remPub)) Sync.dirty = true;
+    } else if (!state.participants.length || stableStr(mine) === stableStr(remPub)
+      || confirm('공용 점수판에 이미 다른 데이터가 있습니다.\n\n[확인] 공용 데이터로 시작(권장) — 이 기기 데이터는 따로 보관됩니다\n[취소] 이 기기 데이터로 공용 점수판 덮어쓰기')
+      || !confirm('정말 이 기기 데이터로 공용 점수판을 덮어쓸까요?\n다른 기기에서 입력한 내용이 모든 화면에서 사라집니다.')) {
+      if (state.participants.length && stableStr(mine) !== stableStr(remPub)) { try { localStorage.setItem('uddt_backup_before_sync_' + Date.now(), JSON.stringify(state)); } catch (e) {} }
+      syncApply(remPub); Sync.base = remPub; Sync.baseTime = rem.time; syncSaveBase();
+    } else { Sync.base = remPub; Sync.baseTime = rem.time; syncSaveBase(); Sync.dirty = true; }   // 덮어쓰기 선택
+    Sync.lastOk = Date.now(); Sync.err = '';
+  } catch (e) { Sync.err = '연결 실패 — 이 기기에 저장 후 자동 재시도'; Sync.dirty = true; }
+  finally { Sync.busy = false; Sync.state = ''; syncPill(); if (Sync.dirty) { clearTimeout(Sync.pushTimer); Sync.pushTimer = setTimeout(syncPush, 300); } }
+}
+async function syncEnterCode(code){
+  code = String(code || '').trim().toLowerCase();
+  if (!/^[a-z0-9-]{8,64}$/.test(code)) { toast('운영자 코드 형식이 맞지 않습니다'); return false; }
+  let r; try { r = await fetch(SYNC_DB + ':commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ writes: [syncOpWrite(code, String(Date.now() * 1000), new Date().toISOString())] }) }); }
+  catch (e) { toast('인터넷 연결을 확인해 주세요'); return false; }
+  if (!r.ok) { toast(r.status === 403 ? '운영자 코드가 맞지 않습니다' : '연결 실패(' + r.status + ')'); return false; }
+  try { localStorage.setItem(OP_KEY, code); } catch (e) {}
+  Sync.code = code; Sync.role = 'op'; Sync.base = null; Sync.baseTime = ''; syncLoadBase();
+  load(); renderAll(); syncRoleUi();                           // 보기 화면(공용본) → 이 기기 데이터로 돌아와 맞추기
+  toast('운영자 기기로 연결했습니다 · 입력하면 모든 화면에 바로 반영됩니다', 3500);
+  await syncInitOp(); syncPoll();
+  return true;
+}
+function syncLogout(){
+  try { localStorage.removeItem(OP_KEY); localStorage.removeItem(SYNC_BASE_KEY); } catch (e) {}
+  Sync.code = ''; Sync.role = 'local'; Sync.base = null; Sync.baseTime = ''; Sync.dirty = false; clearTimeout(Sync.pushTimer);
+  syncRoleUi(); syncPoll();                                     // 공용본이 있으면 보기 전용으로 바뀐다
+}
+function syncPill(){
+  const el = document.getElementById('syncPill'); if (!el) return;
+  el.hidden = !Sync.on;
+  const hm = t => t ? new Date(t).toTimeString().slice(0, 8) : '';
+  let cls = 'ok', txt;
+  if (Sync.role === 'op') {
+    if (Sync.err) { cls = 'bad'; txt = '✍️ 운영자 · ' + Sync.err; }
+    else if (Sync.busy || Sync.dirty) { cls = 'wait'; txt = '✍️ 운영자 · 공유 중…'; }
+    else txt = '✍️ 운영자 · 공유됨 ' + hm(Sync.lastOk);
+  } else if (Sync.role === 'viewer') {
+    if (Sync.err) { cls = 'bad'; txt = '📡 ' + Sync.err; }
+    else txt = '📡 실시간 · ' + hm(Sync.lastOk) + ' 확인';
+  } else { cls = 'off'; txt = '💾 이 기기에만 저장 · 운영자 연결'; }
+  el.className = 'syncpill s-' + cls; el.textContent = txt;
+}
+function syncRoleUi(){
+  document.body.classList.toggle('viewer', Sync.role === 'viewer');
+  document.body.classList.toggle('opdev', Sync.role === 'op');
+  const sub = document.querySelector('header .brand span');
+  if (sub) sub.textContent = Sync.role === 'viewer' ? '2026-11-14(토) · 실시간 공유 · 보기 전용(점수는 운영자가 입력)'
+    : Sync.role === 'op' ? '2026-11-14(토) · 운영자 기기 · 입력하면 모든 휴대폰에 바로 공유'
+    : '2026-11-14(토) · 오프라인 동작 · 저장: 이 기기·이 브라우저';
+  if (Sync.role === 'viewer' && ['p-part', 'p-fine', 'p-data'].includes(currentTab())) showTab(currentStageTab());
+  if (typeof renderMcBar === 'function') renderMcBar(currentTab());
+  syncPill();
+}
+/* 보기 전용: 화면 이동·보기 전환·출력·발표 보기만 허용, 나머지 조작은 막는다 */
+function viewerAllowed(t){
+  if (t.closest('nav.tabs') || t.closest('#syncPill') || t.closest('#show') || t.closest('a')) return true;
+  if (['sub', 'view', 'go', 'print', 'proj'].includes(t.dataset.act)) return true;
+  if (t.matches('.psearch')) return true;
+  return ['btnEnter', 'btnPng', 'btnProj', 'exitProj', 'btnGoR1', 'btnPlaceProj', 'btnShow', 'btnResultPng', 'btnPng2'].includes(t.id);
+}
+['click', 'keydown', 'input', 'change'].forEach(type => document.addEventListener(type, e => {
+  if (Sync.role !== 'viewer') return;
+  if (type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  const t = e.target.closest && e.target.closest('button, input, select, textarea, label, [data-act], .mcard');
+  if (!t || viewerAllowed(t)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (type === 'click') toast('보기 전용 화면입니다 · 점수는 운영자 기기에서 입력합니다');
+}, true));
+function syncStart(){
+  if (SELFTEST || DEMO || qs.get('local') === '1' || typeof fetch !== 'function') return;
+  Sync.on = true;
+  try { Sync.code = localStorage.getItem(OP_KEY) || ''; } catch (e) {}
+  const opArg = qs.get('op');
+  if (opArg) { try { const u = new URL(location.href); u.searchParams.delete('op'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {} }
+  if (Sync.code) { Sync.role = 'op'; syncLoadBase(); }
+  const pill = document.getElementById('syncPill');
+  if (pill) pill.addEventListener('click', () => {
+    if (Sync.role === 'op') { if (confirm('이 기기의 운영자 연결을 끌까요?\n(이 기기 데이터는 그대로 남고, 화면은 공용 점수판 보기로 바뀝니다)')) syncLogout(); }
+    else { const c = prompt('운영자 코드(점수 입력 담당만)'); if (c) syncEnterCode(c); }
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPoll(); });
+  syncRoleUi();
+  if (opArg && opArg.trim().toLowerCase() !== Sync.code) syncEnterCode(opArg).then(ok => { if (!ok) { if (Sync.role === 'op') syncInitOp().then(syncPoll); else syncPoll(); } });
+  else if (Sync.role === 'op') syncInitOp().then(syncPoll);
+  else syncPoll();
 }
 function normalizeState(s){
   const d = defaultState();
@@ -1383,6 +1653,8 @@ function showTab(id){
   setRoute(id);
   $$('section.panel').forEach(s => s.classList.toggle('active', s.id === id));
   $$('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  const ab = document.querySelector(`nav.tabs button[data-tab="${id}"]`), nv = ab && ab.parentElement;   // 휴대폰: 고른 탭을 탭 줄 가운데로(4~6번 탭이 화면 밖에 숨던 문제)
+  if (nv && nv.scrollWidth > nv.clientWidth + 2) { const x = Math.max(0, ab.offsetLeft - nv.offsetLeft - (nv.clientWidth - ab.offsetWidth) / 2); try { nv.scrollTo({ left: x, behavior: 'smooth' }); } catch (e) { nv.scrollLeft = x; } }
   onTabShown(id);
 }
 $$('nav.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -1853,7 +2125,9 @@ $('#importFile').addEventListener('change', e => {
 $('#btnReset').addEventListener('click', () => {
   if (!confirm('이 기기의 대회 데이터(명단·추첨·점수·배치·벌금·이력)를 모두 삭제할까요?')) return;
   if (!confirm('정말 삭제합니까? 되돌릴 수 없습니다.')) return;
+  const opClear = Sync.role === 'op' && confirm('공용 점수판(모든 휴대폰 화면)도 함께 비울까요?\n\n[확인] 공용 점수판도 비움\n[취소] 이 기기만 비우고 운영자 연결 해제');
   Anim.cancel(); Fx.cancel(); localStorage.removeItem(LS_KEY); localStorage.removeItem(UNDO_KEY); state = defaultState(); nextNo = 1; renderAll(); toast('초기화 완료');
+  if (Sync.role === 'op') { if (opClear) { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} syncChanged(); } else syncLogout(); }
 });
 
 /* ================= 데모·자체 검사(?demo / ?selftest) ================= */
@@ -2486,7 +2760,7 @@ function groupBracketHtml(which, ev, h, nm, editable, nexts){
     const color = GROUP_COLORS[(g.no - 1) % 5];
     const rows = ms.map(m => {
       const s = h.scores[m.id], has = B.hasScore(s), aw = has && s.a > s.b, bw = has && s.b > s.a, nx = nexts.has(m.id);
-      const sc = has ? `<b class="${aw ? 'w' : ''}">${s.a}</b><i>:</i><b class="${bw ? 'w' : ''}">${s.b}</b>` : `<span class="todo">${editable ? '입력' : '-'}</span>`;
+      const sc = has ? `<b class="${aw ? 'w' : ''}">${s.a}</b><i>:</i><b class="${bw ? 'w' : ''}">${s.b}</b>` : `<span class="todo">${editable && Sync.role !== 'viewer' ? '입력' : '-'}</span>`;
       return `<tr class="${has ? 'done' : ''} ${nx ? 'next' : ''} ${editable ? 'click' : ''}" ${editable ? `role="button" tabindex="0" data-act="pad" data-id="${m.id}"` : ''}>
         <td class="k">${m.k}${nx ? '<span class="now">지금</span>' : ''}</td><td class="t">${m.time}</td>
         <td class="ta ${aw ? 'win' : bw ? 'lose' : ''}">${teamCell(nm, m.a)}</td><td class="sc">${sc}</td><td class="tb ${bw ? 'win' : aw ? 'lose' : ''}">${teamCell(nm, m.b)}</td></tr>`;
@@ -2519,9 +2793,9 @@ function matchCardHtml(m, s, nm, locked, isNext){
   const has = B.hasScore(s), aw = has && s.a > s.b, bw = has && s.b > s.a;
   return `<div class="mcard ${has ? '' : 'todo'} ${locked ? 'locked' : ''} ${isNext ? 'next' : ''}" role="button" tabindex="0" data-act="pad" data-id="${m.id}">
     <div class="mh"><span><i class="gtag" style="background:${GROUP_COLORS[(m.g - 1) % 5]}"></i><b>${m.g}조</b> ${m.k}경기${isNext ? ' · <b style="color:var(--ok)">지금</b>' : ''}</span><span>${m.court}코트 · R${m.round} · ${m.time}</span></div>
-    <div class="tm ${aw ? 'win' : bw ? 'lose' : ''}" data-side="a"><span class="nm">${teamNames(nm, m.a)}</span><span class="sc">${has ? s.a : '입력'}</span></div>
+    <div class="tm ${aw ? 'win' : bw ? 'lose' : ''}" data-side="a"><span class="nm">${teamNames(nm, m.a)}</span><span class="sc">${has ? s.a : (Sync.role === 'viewer' ? '-' : '입력')}</span></div>
     <div class="vs">VS</div>
-    <div class="tm ${bw ? 'win' : aw ? 'lose' : ''}" data-side="b"><span class="nm">${teamNames(nm, m.b)}</span><span class="sc">${has ? s.b : '입력'}</span></div></div>`;
+    <div class="tm ${bw ? 'win' : aw ? 'lose' : ''}" data-side="b"><span class="nm">${teamNames(nm, m.b)}</span><span class="sc">${has ? s.b : (Sync.role === 'viewer' ? '-' : '입력')}</span></div></div>`;
 }
 function rankCardsHtml(which, ev, editable){
   const h = state.bracket[which];
@@ -2870,7 +3144,7 @@ function renderAward(){
   const prizes = rows.filter(r => r.prize);
   el.innerHTML = `<div class="grid2"><div class="box"><h2>🏆 상품 (신세계상품권)</h2><ul>${prizes.map(r => `<li><b>${esc(r.name)}</b> — ${esc(r.prize.label)}${r.prize.note ? `<br><span class="small muted">${esc(r.prize.note)}</span>` : ''}</li>`).join('')}</ul></div>
     <div class="box"><h2>📌 안내</h2><p><b>급수 프로필 변경: 12월 31일까지</b> (우당탕탕 급수)</p><p class="small muted">급수 기준: ${state.settings.gradeMode === 'poster' ? '포스터 구간(1 자강·2 준자강·3~5 S·6~9 A·10~13 B·14~18 C·19~22 D·23~ 초심·하위 2명 일반인)' : '엑셀 본선 결과창 고정표(후반전 조·조 내 순위별)'}</p><p class="small muted">각 조 꼴찌 벌금 5천원(전반·후반 전부). 벌금왕·출석왕은 🔒 운영자 화면에서 집계합니다.</p></div></div>
-    <div class="box" style="margin-top:12px;overflow:auto"><table class="final"><thead><tr><th>순위</th><th>이름</th><th>후반 조·순위</th><th>승·패·득실</th><th>급수</th><th>상품</th><th>전반 결과</th></tr></thead><tbody>${rows.map(r => `<tr><td class="num">${r.overall}</td><td><b>${esc(r.name)}</b></td><td>${r.group}조 ${r.rankInGroup}위${r.last ? ' <span class="stamp">꼴찌</span>' : ''}</td><td>${r.w}승 ${r.l}패 ${signed(r.diff)}</td><td><span class="gbadge" data-g="${r.grade}">${r.grade}</span></td><td>${r.prize ? esc(r.prize.label.replace(/^.*?신세계상품권 /, '')) : ''}</td><td class="small">${r1Of(r.no)}</td></tr>`).join('')}</tbody></table></div>`;
+    <div class="box" style="margin-top:12px;overflow:auto"><table class="final"><thead><tr><th>순위</th><th>이름</th><th>후반 조·순위</th><th>승·패·득실</th><th>급수</th><th>상품</th><th>전반 결과</th></tr></thead><tbody>${rows.map(r => `<tr><td class="num">${r.overall}</td><td class="nm"><b>${esc(r.name)}</b></td><td class="grp">${r.group}조 ${r.rankInGroup}위${r.last ? ' <span class="stamp">꼴찌</span>' : ''}</td><td class="wl">${r.w}승 ${r.l}패 ${signed(r.diff)}</td><td class="gr"><span class="gbadge" data-g="${r.grade}">${r.grade}</span></td><td class="pz">${r.prize ? esc(r.prize.label.replace(/^.*?신세계상품권 /, '')) : ''}</td><td class="small r1">${r1Of(r.no)}</td><td class="mo">${r.group}조 ${r.rankInGroup}위${r.last ? ' <span class="stamp">꼴찌</span>' : ''} · ${r.w}승 ${r.l}패 ${signed(r.diff)}${r.prize ? ` · <b class="pzm">${esc(r.prize.label.replace(/^.*?신세계상품권 /, ''))}</b>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
 }
 $('#gradeModeChips').addEventListener('change', e => { if (e.target.name !== 'gradeMode') return; state.settings.gradeMode = e.target.value; save(); renderAward(); });
 
@@ -3196,9 +3470,10 @@ if (DEMO === '2') {
   else if (!state.participants.length) showTab('p-part');
   else if (!SELFTEST) showTab(currentStageTab());
   if (SELFTEST) runSelfTest(SELFTEST);
+  syncStart();
 }
 // 안내: 저장 위치
-if (!SELFTEST && !DEMO && !sessionStorage.getItem('uddt_note')) { sessionStorage.setItem('uddt_note', '1'); setTimeout(() => toast('데이터는 이 기기·이 브라우저에만 저장됩니다. 확정 뒤 JSON 을 내보내 보관하세요.', 4500), 600); }
+if (!SELFTEST && !DEMO && !sessionStorage.getItem('uddt_note')) { sessionStorage.setItem('uddt_note', '1'); setTimeout(() => { if (Sync.role === 'local') toast('데이터는 이 기기·이 브라우저에만 저장됩니다(운영자 코드로 연결하면 모든 휴대폰에 실시간 공유).', 4500); }, 2500); }
 })();
 </script>
 </body>
