@@ -139,6 +139,11 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
     await tab('p-' + which);
     check(`주소 #${hash}`, await ev('location.hash') === '#' + hash);
     await printCheck(which, label, which + '_blank');
+    const tieBefore = async () => ev(`document.querySelectorAll('#p-${which} .badge.tie, #p-${which} .tiebar, #p-${which} tr.tied').length`);
+    check(`${label} 점수 입력 전 동률 표시 없음(조별 대진표)`, await tieBefore() === 0);
+    await click(`#p-${which} [data-act="sub"][data-sub="rank"]`); await sleep(150);
+    check(`${label} 점수 입력 전 동률 표시 없음(순위)`, await tieBefore() === 0);
+    await click(`#p-${which} [data-act="sub"][data-sub="match"]`); await sleep(150);
     const gb = await ev(`({boxes:document.querySelectorAll('#p-${which} .gbox').length, rows:document.querySelectorAll('#p-${which} tr[data-act="pad"]').length, heads:[...document.querySelectorAll('#p-${which} .gbox h3')].map(h=>h.textContent).join(',')})`);
     check(`${label} 기본 화면 = 조별 대진표 5개 표`, gb.boxes === 5 && gb.rows === EXPM, JSON.stringify(gb));
     const ids = await ev(`[...document.querySelectorAll('#p-${which} tr[data-act="pad"]')].map(r=>r.dataset.id)`);

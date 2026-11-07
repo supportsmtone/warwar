@@ -1963,6 +1963,7 @@ async function runSelfTest(mode){
       const s11 = state.bracket.r1.scores['1-1'];
       ok('edit_history_kept', s11.a === 21 && s11.b === 19 && s11.hist.length === 1 && s11.hist[0].b === 15, JSON.stringify(s11));
       // 나머지 데모 채우기(버튼)
+      ok('no_tie_shown_before_scores', $$('#p-r1 .badge.tie, #p-r1 .tiebar, #p-r1 tr.tied').length === 0);
       const fillBtn = $('#p-r1 [data-act="demofill"]'); ok('demofill_button_visible', !!fillBtn); fillBtn.click();
       // 동률 강제: 1조·2조 나이 같게 + 전 경기 동점 → 완전 동률
       const g1 = state.bracket.r1.groups[0], g2 = state.bracket.r1.groups[1];
@@ -2478,7 +2479,7 @@ function groupBracketHtml(which, ev, h, nm, editable, nexts){
     }).join('');
     // 동률(승·패·득실·나이 모두 같음) — 조 경기가 끝나면 여기서 바로 동전/직접 결정
     const tied = new Set(); let tiebar = '';
-    for (const blk of g.rank.blocks) {
+    for (const blk of (g.complete ? g.rank.blocks : [])) {   // 점수 입력 중에는 동률 표시 안 함(대표 11/7) — 조 경기가 다 끝난 뒤 진짜 동률만
       if (blk.resolved) continue;
       blk.nos.forEach(no => tied.add(no));
       const names = blk.nos.map(no => esc(g.byNo.get(no).name)).join(' · ');
@@ -2512,9 +2513,9 @@ function rankCardsHtml(which, ev, editable){
   const h = state.bracket[which];
   return '<div class="rankgrid">' + ev.groups.map(g => {
     const done = ev.matches.filter(m => m.g === g.no && B.hasScore(h.scores[m.id])).length, tot = ev.matches.filter(m => m.g === g.no).length;
-    const unresolved = new Set(g.rank.ties.flatMap(t => t.nos));
+    const unresolved = new Set(g.complete ? g.rank.ties.flatMap(t => t.nos) : []);
     let tiebar = '';
-    for (const blk of g.rank.blocks) {
+    for (const blk of (g.complete ? g.rank.blocks : [])) {
       const names = blk.nos.map(no => esc(g.byNo.get(no).name)).join(' · ');
       if (!blk.resolved) tiebar += `<div class="tiebar"><span class="badge tie">동률!</span><span>${names}</span><span class="spacer"></span>` + (g.complete && editable ? `<button class="primary" data-act="coin" data-key="${esc(blk.key)}" data-nos="${blk.nos.join(',')}" data-title="${g.no}조 동률">🪙 동전</button><button data-act="manual" data-key="${esc(blk.key)}" data-nos="${blk.nos.join(',')}" data-title="${g.no}조 동률">✋ 직접</button>` : `<span class="muted small">${g.complete ? '확정됨' : '경기 끝나면 결정'}</span>`) + '</div>';
       else tiebar += `<div class="tiebar small muted">동률 → ${blk.method === 'coin' ? '🪙 동전 던지기' : '✋ 운영자 지정'}로 결정: ${names}${editable ? ` <button class="ghost" data-act="retie" data-key="${esc(blk.key)}">다시 정하기</button>` : ''}</div>`;
@@ -2567,7 +2568,8 @@ function renderHalf(which){
   let tools = `<div class="rtools"><div class="subtabs">${sub('match', '📝 경기·점수')}${sub('person', '👤 개인 결과')}${sub('rank', '🏅 순위')}${sub('call', '📣 호출판')}${sub('board', '📊 순위판')}</div>`;
   if (u.sub === 'match') tools += `<div class="subtabs">${['group', 'round'].map(v => `<button class="${u.view === v ? 'on' : ''}" data-act="view" data-view="${v}">${v === 'round' ? '라운드별' : '조별 대진표'}</button>`).join('')}</div>`;
   tools += `<span class="prog"><span class="bar"><i style="width:${pct}%"></i></span><b>${ev.done}/${ev.total}</b>경기</span>`;
-  if (ev.unresolved) tools += `<span class="badge tie">동률 ${ev.unresolved}건</span>`;
+  const tieNow = ev.groups.reduce((n, g) => n + (g.complete ? g.rank.ties.length : 0), 0);
+  if (tieNow) tools += `<span class="badge tie">동률 ${tieNow}건</span>`;
   tools += '<span class="spacer"></span>';
   if (state.demo && editable && !ev.allScored) tools += '<button class="ghost" data-act="demofill">🎲 데모: 남은 점수 채우기</button>';
   if (u.sub === 'match') tools += `<button class="ghost" data-act="print" data-g="all">🖨 전체 조 출력</button>`;
