@@ -100,25 +100,33 @@ const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebK
   const html = await (await fetch(`http://127.0.0.1:${PORT}/index.html`)).text();
   check('index.html 에 비밀번호 문자열 없음', !html.includes(PW));
 
-  log('1. 운영 PC(전반전 확정·후반전 배치까지 된 데이터, 아직 운영자 아님)');
+  const pill = d => d.ev(`(async()=>{ document.getElementById('syncPill').click(); await new Promise(r=>setTimeout(r,250)); return !document.querySelector('#pwm').hidden })()`);
+  const isViewer = d => d.ev(`document.body.classList.contains('viewer') && !document.body.classList.contains('opdev')`);
+
+  log('1. 운영 PC(전반전 확정·후반전 배치까지 된 데이터, 비밀번호 전) → 보기 전용');
   const pc = await device('운영PC', base('#round2'));
   await pc.ev(`localStorage.setItem('uddt_draw_v1', ${JSON.stringify(JSON.stringify(Object.assign({ history: [] }, ST)))}); true`);
   await pc.send('Page.reload', { ignoreCache: true }); await sleep(500); await pc.until(`document.readyState==='complete' && !!document.querySelector('nav.tabs')`); await sleep(800);
-  check('처음: 운영자 아님', !(await pc.ev(`document.body.classList.contains('opdev')`)), await pc.pill());
+  check('비밀번호 전: 보기 전용(관리자 아님)', await isViewer(pc), await pc.pill());
   const r2ids = await pc.ev(`(async()=>{ document.querySelector('nav.tabs button[data-tab="p-r2"]').click(); await new Promise(r=>setTimeout(r,300)); return [...document.querySelectorAll('#p-r2 [data-act="pad"]')].map(r=>r.dataset.id) })()`);
   check('후반전 경기 줄 있음', r2ids.length === 28, r2ids.length);
-  check('경기 줄 누르면 비밀번호 창(숫자 패드 아님)', (await openRow(pc, 'r2', r2ids[0])) === 'pw');
+  check('보기 전용: 경기 줄 → 비밀번호 창(패드 아님)', (await openRow(pc, 'r2', r2ids[0])) === 'pw');
+  await pc.click('#pwCancel'); await sleep(200);
+  check('취소하면 그대로 보기 전용', await isViewer(pc) && await pc.ev(`document.querySelector('#pad').hidden`));
+  check('보기 전용: 참가자 탭 숨김', await pc.ev(`getComputedStyle(document.querySelector('nav.tabs button[data-tab="p-part"]')).display==='none'`));
+  check('승인 요청 자동 생성 안 함', (await (await fetch(`${DB}/req`)).json()).documents === undefined);
+  check('화면 위 표시줄 → 관리자 비밀번호 창', await pill(pc) && /관리자 모드/.test(await pc.ev(`document.querySelector('#pwm h2').textContent`)));
   const w1 = await typePw(pc, '0000');
   check('틀린 비밀번호 → 거절', /맞지 않습니다/.test(w1), w1);
-  check('틀린 비밀번호 뒤에도 운영자 아님·공용판 없음', !(await pc.ev(`document.body.classList.contains('opdev')`)) && (await remote()) === null);
-  const w2 = await typePw(pc, PW);
-  check('맞는 비밀번호 → 창 닫힘', w2 === 'closed', w2);
-  const tOp = await settle(async () => /운영자 · 공유됨/.test(await pc.pill()), 20000);
-  check('운영자 기기로 전환·공유(총괄이사 승인 없이)', tOp >= 0, await pc.pill());
-  check('비밀번호 확인 뒤 숫자 패드가 바로 열림', await pc.ev(`!document.querySelector('#pad').hidden`));
+  check('틀린 비밀번호 뒤에도 보기 전용·공용판 없음', await isViewer(pc) && (await remote()) === null);
+  check('맞는 비밀번호 → 창 닫힘', (await typePw(pc, PW)) === 'closed');
+  const tOp = await settle(async () => /관리자 · 공유됨/.test(await pc.pill()), 20000);
+  check('관리자 모드 전환·공유(표시줄 「🔑 관리자 · 공유됨」)', tOp >= 0, await pc.pill());
+  check('관리자: 참가자 탭 보임', await pc.ev(`getComputedStyle(document.querySelector('nav.tabs button[data-tab="p-part"]')).display!=='none'`));
+  check('관리자: 경기 줄 → 바로 숫자 패드(비밀번호 없음)', (await openRow(pc, 'r2', r2ids[0])) === 'pad');
   check('후반전 점수 입력', (await padEnter(pc, '21', '17')) === 'ok');
   let rem; await settle(async () => { rem = await remote(); return rem && rem.bracket.r2 && rem.bracket.r2.scores[r2ids[0]] && rem.bracket.r2.scores[r2ids[0]].a === 21; }, 15000);
-  check('공용판: 전반전 28경기·후반전 1경기', rem && Object.values(rem.bracket.r1.scores).filter(s => s.a != null).length === 28 && rem.bracket.r2.scores[r2ids[0]].a === 21, rem ? `r1=${Object.values(rem.bracket.r1.scores).filter(s => s.a != null).length} r2=${JSON.stringify(rem.bracket.r2 && rem.bracket.r2.scores).slice(0,120)} pill=${await pc.pill()}` : 'no pub');
+  check('공용판: 전반전 28경기·후반전 1경기', rem && Object.values(rem.bracket.r1.scores).filter(s => s.a != null).length === 28 && rem.bracket.r2.scores[r2ids[0]].a === 21);
   check('비밀번호는 이 기기에 저장 안 함(확인 여부만)', !(await pc.ev(`JSON.stringify(Object.entries(localStorage)).includes('${PW}')`)));
 
   log('2. 보기 휴대폰');
@@ -127,26 +135,35 @@ const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebK
   const pv = await settle(async () => (await prog(ph, 'r2')) === '1/28', 15000);
   check('휴대폰: 보기 전용·후반전 1/28', pv >= 0, await prog(ph, 'r2'));
   check('휴대폰: 초기화 버튼 안 보임', await ph.ev(`(()=>{const b=document.querySelector('#p-r2 [data-act="reset"]'); return !b || getComputedStyle(b).display==='none'})()`));
-  check('휴대폰: 경기 줄 누르면 비밀번호 창', (await openRow(ph, 'r2', r2ids[1])) === 'pw');
+  check('휴대폰: 경기 줄 → 비밀번호 창(패드 아님)', (await openRow(ph, 'r2', r2ids[1])) === 'pw');
+  await ph.click('#pwCancel'); await sleep(200);
+  check('휴대폰: 표시줄 → 비밀번호 창', await pill(ph));
   await ph.click('#pwCancel'); await sleep(300);
-  check('취소하면 그대로 보기 전용', await ph.ev(`document.body.classList.contains('viewer') && document.querySelector('#pad').hidden && document.querySelector('#pwm').hidden`));
+  check('취소하면 그대로 보기 전용', await isViewer(ph) && await ph.ev(`document.querySelector('#pad').hidden && document.querySelector('#pwm').hidden`));
 
-  log('3. 두 번째 휴대폰: 비밀번호로 점수 입력 담당');
+  log('2b. 예전에 기기 승인만 받은 기기(비밀번호 안 넣음) → 보기 전용');
+  const old = await device('예전승인기기', base('#round2'));
+  await old.ev(`localStorage.setItem('uddt_dev_key','${'ab'.repeat(32)}'); localStorage.setItem('uddt_dev_ok','1'); true`);
+  await old.send('Page.reload', { ignoreCache: true }); await sleep(500); await old.until(`document.readyState==='complete' && !!document.querySelector('nav.tabs')`); await sleep(1500);
+  check('승인만 받은 기기도 비밀번호 전엔 보기 전용', await isViewer(old), await old.pill());
+
+  log('3. 두 번째 휴대폰: 표시줄 → 비밀번호 → 관리자');
   const ph2 = await device('휴대폰2', base('#round2'), true);
   await ph2.until(`document.body.classList.contains('viewer')`);
   check('휴대폰2: 경기 줄 → 비밀번호 창', (await openRow(ph2, 'r2', r2ids[2])) === 'pw');
   check('휴대폰2: 맞는 비밀번호', (await typePw(ph2, PW)) === 'closed');
   await ph2.until(`document.body.classList.contains('opdev') && !document.querySelector('#pad').hidden`, 20000);
-  check('휴대폰2: 운영자 전환 후 패드 열림 → 입력', (await padEnter(ph2, '15', '21')) === 'ok');
+  check('휴대폰2: 비밀번호 뒤 그 경기 숫자 패드가 바로 열림 → 입력', (await padEnter(ph2, '15', '21')) === 'ok');
+  check('휴대폰2: 다음 경기는 비밀번호 없이 바로 패드', (await openRow(ph2, 'r2', r2ids[4])) === 'pad'); await ph2.click('#padCancel');
   const t2 = await settle(async () => (await prog(pc, 'r2')) === '2/28', 20000);
   check('운영 PC에 휴대폰2 입력 반영(합치기)', t2 >= 0, t2 + 'ms');
   const t3 = await settle(async () => (await prog(ph, 'r2')) === '2/28', 20000);
   check('보기 휴대폰 2/28', t3 >= 0, t3 + 'ms');
 
-  log('4. 최초 1회만: 새로고침 뒤엔 바로 패드');
+  log('4. 한 번만: 새로고침 뒤에도 관리자');
   await pc.send('Page.reload', { ignoreCache: true }); await sleep(500); await pc.until(`document.readyState==='complete' && !!document.querySelector('nav.tabs')`); await sleep(500);
-  await settle(async () => /운영자 · 공유됨/.test(await pc.pill()), 15000);
-  check('새로고침 뒤 경기 줄 → 바로 숫자 패드', (await openRow(pc, 'r2', r2ids[3])) === 'pad');
+  await settle(async () => /관리자 · 공유됨/.test(await pc.pill()), 15000);
+  check('새로고침 뒤에도 관리자·경기 줄 → 바로 숫자 패드', /관리자/.test(await pc.pill()) && (await openRow(pc, 'r2', r2ids[3])) === 'pad');
   await pc.click('#padCancel');
 
   log('5. 후반전 점수 초기화');

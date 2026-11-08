@@ -231,6 +231,7 @@ nav.tabs button.optab{border:1px dashed var(--accent2)}
 #syncPill.syncpill{background:rgba(0,0,0,.35);box-shadow:none;transform:none}#syncPill.s-ok{border-color:#3ddc97;color:#3ddc97}#syncPill.s-wait{border-color:var(--accent);color:var(--accent)}#syncPill.s-bad{border-color:#ff5d73;color:#ff8a9a}#syncPill.s-off{color:var(--muted)}
 body.viewer nav.tabs button[data-tab="p-part"],body.viewer nav.tabs button[data-tab="p-fine"],body.viewer nav.tabs button[data-tab="p-data"],body.viewer #mcbar{display:none!important}
 body.viewer tr[data-act="pad"],body.viewer .mcard{cursor:pointer}
+#syncPill{cursor:pointer}
 body.viewer [data-act="reset"],body.viewer #btnDrawReset{display:none!important}
 .pwin{width:100%;font-size:1.6rem;letter-spacing:.3em;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);background:rgba(0,0,0,.35);color:var(--text)}
 .pwin:focus{border-color:var(--accent);outline:none}
@@ -861,8 +862,8 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <!-- 점수 비밀번호(11/8 대표: 점수 입력 최초 1회) -->
 <div id="pwm" class="modal" hidden role="dialog" aria-modal="true" aria-label="점수 입력 비밀번호">
   <div class="sheet">
-    <h2>🔑 점수 입력 비밀번호</h2>
-    <p class="muted small">점수를 입력·수정·초기화하는 사람만 넣습니다. 이 기기에서 <b>처음 한 번만</b> 묻습니다.</p>
+    <h2>🔑 관리자 모드</h2>
+    <p class="muted small">관리자만 참가자·조편성·점수 입력을 할 수 있습니다. 비밀번호를 넣으면 이 기기가 관리자 모드로 바뀌고, 이 기기에서는 <b>다시 묻지 않습니다</b>.</p>
     <input id="pwInput" class="pwin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" placeholder="비밀번호">
     <div id="pwWarn" class="notice red" hidden></div>
     <div class="row padbtns">
@@ -1403,7 +1404,6 @@ async function syncDevInit(){
   let k = ''; try { k = localStorage.getItem(DEV_KEY) || ''; Sync.devOk = localStorage.getItem(DEV_OK) === '1'; } catch (e) {}
   if (!/^[0-9a-f]{64}$/.test(k) || !(window.crypto && crypto.subtle)) { Sync.devOk = false; return; }
   Sync.devK = k; Sync.devH = await sha256hex(k);
-  if (!Sync.devOk) Sync.pending = true;
 }
 function syncDevNo(){ return Sync.devH ? Sync.devH.slice(0, 6).toUpperCase() : ''; }
 /* 승인 요청: 키 만들기(처음 한 번) → req/<해시> 남기기. 점수를 입력한 기기는 자동으로 요청한다 */
@@ -1485,7 +1485,7 @@ async function pwSubmit(){
   PwGate.busy = false; $('#pwOk').disabled = false; $('#pwOk').textContent = '확인';
   if (!res.ok) { w.hidden = false; w.textContent = res.msg; $('#pwInput').select(); return; }
   const then = PwGate.then; closePw();
-  toast('확인됐습니다 · 이 기기에서 점수를 입력하면 모든 휴대폰에 바로 보입니다', 3500);
+  toast('관리자 모드입니다 · 참가자·조편성·점수 입력이 모든 휴대폰에 바로 보입니다', 3500);
   if (then) then();
 }
 async function syncCommit(pub, preTime){
@@ -1513,7 +1513,6 @@ function syncApply(pub){
   syncRoleUi();
 }
 function syncChanged(){
-  if (Sync.on && Sync.role === 'local' && !Sync.devK && !Sync.reqBusy && state.draw && state.participants.length) { Sync.reqBusy = true; syncRequestDev().finally(() => { Sync.reqBusy = false; }); }   // 이 기기에서 추첨 → 자동 승인 요청
   if (Sync.role !== 'op') return;
   Sync.dirty = true; clearTimeout(Sync.pushTimer); Sync.pushTimer = setTimeout(syncPush, 600); syncPill();
 }
@@ -1611,7 +1610,7 @@ async function syncEnterCode(code){
 function syncLogout(){
   try { localStorage.removeItem(OP_KEY); localStorage.removeItem(SYNC_BASE_KEY); localStorage.removeItem(DEV_KEY); localStorage.removeItem(DEV_OK); localStorage.removeItem(PW_OK); } catch (e) {}
   Sync.devK = ''; Sync.devH = ''; Sync.devOk = false; Sync.pwOk = false; Sync.pending = false;
-  Sync.code = ''; Sync.role = 'local'; Sync.base = null; Sync.baseTime = ''; Sync.dirty = false; clearTimeout(Sync.pushTimer);
+  Sync.code = ''; Sync.role = 'viewer'; Sync.base = null; Sync.baseTime = ''; Sync.dirty = false; clearTimeout(Sync.pushTimer);
   syncRoleUi(); syncPoll();                                     // 공용본이 있으면 보기 전용으로 바뀐다
 }
 function syncPill(){
@@ -1620,9 +1619,9 @@ function syncPill(){
   const hm = t => t ? new Date(t).toTimeString().slice(0, 8) : '';
   let cls = 'ok', txt;
   if (Sync.role === 'op') {
-    if (Sync.err) { cls = 'bad'; txt = '✍️ 운영자 · ' + Sync.err; }
-    else if (Sync.busy || Sync.dirty) { cls = 'wait'; txt = '✍️ 운영자 · 공유 중…'; }
-    else txt = '✍️ 운영자 · 공유됨 ' + hm(Sync.lastOk);
+    if (Sync.err) { cls = 'bad'; txt = '🔑 관리자 · ' + Sync.err; }
+    else if (Sync.busy || Sync.dirty) { cls = 'wait'; txt = '🔑 관리자 · 공유 중…'; }
+    else txt = '🔑 관리자 · 공유됨 ' + hm(Sync.lastOk);
   } else if (Sync.role === 'viewer') {
     if (Sync.err) { cls = 'bad'; txt = '📡 ' + Sync.err; }
     else txt = '📡 실시간 · ' + hm(Sync.lastOk) + ' 확인';
@@ -1634,8 +1633,8 @@ function syncRoleUi(){
   document.body.classList.toggle('viewer', Sync.role === 'viewer');
   document.body.classList.toggle('opdev', Sync.role === 'op');
   const sub = document.querySelector('header .brand span');
-  if (sub) sub.textContent = Sync.role === 'viewer' ? '2026-11-14(토) · 실시간 공유 · 보기 전용(점수는 운영자가 입력)'
-    : Sync.role === 'op' ? '2026-11-14(토) · 운영자 기기 · 입력하면 모든 휴대폰에 바로 공유'
+  if (sub) sub.textContent = Sync.role === 'viewer' ? '2026-11-14(토) · 실시간 공유 · 보기 전용(입력은 관리자만)'
+    : Sync.role === 'op' ? '2026-11-14(토) · 관리자 모드 · 입력하면 모든 휴대폰에 바로 공유'
     : '2026-11-14(토) · 오프라인 동작 · 저장: 이 기기·이 브라우저';
   if (Sync.role === 'viewer' && ['p-part', 'p-fine', 'p-data'].includes(currentTab())) showTab(currentStageTab());
   if (typeof renderMcBar === 'function') renderMcBar(currentTab());
@@ -1644,7 +1643,7 @@ function syncRoleUi(){
 /* 보기 전용: 화면 이동·보기 전환·출력·발표 보기만 허용, 나머지 조작은 막는다 */
 function viewerAllowed(t){
   if (t.closest('nav.tabs') || t.closest('#syncPill') || t.closest('#show') || t.closest('a') || t.closest('#pwm')) return true;
-  if (t.dataset.act === 'pad') return true;   // 경기 줄 → 점수 비밀번호 창(맞으면 운영자 기기)
+  if (t.dataset.act === 'pad') return true;   // 경기 줄 → 비밀번호(관리자 모드) → 점수 입력
   if (['sub', 'view', 'go', 'print', 'proj'].includes(t.dataset.act)) return true;
   if (t.matches('.psearch')) return true;
   return ['btnEnter', 'btnPng', 'btnProj', 'exitProj', 'btnGoR1', 'btnPlaceProj', 'btnShow', 'btnResultPng', 'btnPng2'].includes(t.id);
@@ -1655,7 +1654,7 @@ function viewerAllowed(t){
   const t = e.target.closest && e.target.closest('button, input, select, textarea, label, [data-act], .mcard');
   if (!t || viewerAllowed(t)) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  if (type === 'click') toast('보기 전용 화면입니다 · 점수는 운영자 기기에서 입력합니다');
+  if (type === 'click') toast('보기 전용 화면입니다 · 입력은 관리자만(화면 위 표시줄 또는 경기 줄 → 비밀번호)');
 }, true));
 function syncStart(){
   if (SELFTEST || DEMO || qs.get('local') === '1' || typeof fetch !== 'function') return;
@@ -1665,7 +1664,7 @@ function syncStart(){
   if (opArg) { try { const u = new URL(location.href); u.searchParams.delete('op'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {} }
   const pill = document.getElementById('syncPill');
   if (pill) pill.addEventListener('click', () => {
-    if (Sync.role === 'op') { if (confirm('이 기기의 운영자 연결을 끌까요?\n(이 기기 데이터는 그대로 남고, 화면은 공용 점수판 보기로 바뀝니다)')) syncLogout(); }
+    if (Sync.role === 'op') { if (confirm('이 기기의 관리자 모드를 끌까요?\n(이 기기 데이터는 그대로 남고, 화면은 보기 전용으로 바뀝니다. 다시 켜려면 비밀번호)')) syncLogout(); }
     else {
       needPw(() => {});
     }
@@ -1674,10 +1673,9 @@ function syncStart(){
   syncRoleUi();
   (async () => {
     try { await syncDevInit(); } catch (e) {}
-    if (Sync.code || Sync.devOk) { Sync.role = 'op'; syncLoadBase(); }
+    // 11/8 대표: 화면 위 표시줄 → 비밀번호 → 관리자 모드. 관리자만 참가자·조편성·점수 입력, 나머지는 단순 보기
+    if (Sync.code || (Sync.devOk && Sync.pwOk)) { Sync.role = 'op'; syncLoadBase(); } else Sync.role = 'viewer';
     syncRoleUi();
-    // 이 기기에 추첨 데이터가 있고(점수 입력 기기) 아직 운영자가 아니면 자동으로 승인 요청 — 휴대폰 보기 기기는 데이터가 없어 요청하지 않는다
-    if (!opArg && Sync.role !== 'op' && !Sync.devK && state.draw && state.participants.length) { Sync.reqBusy = true; try { await syncRequestDev(); } catch (e) {} Sync.reqBusy = false; }
     if (opArg && opArg.trim().toLowerCase() !== Sync.code) syncEnterCode(opArg).then(ok => { if (!ok) { if (Sync.role === 'op') syncInitOp().then(syncPoll); else syncPoll(); } });
     else if (Sync.role === 'op') syncInitOp().then(syncPoll);
     else syncPoll();
@@ -3193,7 +3191,7 @@ function halfClick(which, e){
   const act = t.dataset.act, u = ui[which];
   if (act === 'sub') { u.sub = t.dataset.sub; renderHalf(which); }
   else if (act === 'view') { u.view = t.dataset.view; renderHalf(which); }
-  else if (act === 'pad') { const id = t.dataset.id; needPw(() => openPad(which, id)); }
+  else if (act === 'pad') { const id = t.dataset.id; if (Sync.on && Sync.role !== 'op') needPw(() => openPad(which, id)); else openPad(which, id); }
   else if (act === 'reset') needPw(() => openReset(which));
   else if (act === 'lock') lockHalf(which);
   else if (act === 'unlock') unlockHalf(which, false);
@@ -3208,7 +3206,7 @@ function halfClick(which, e){
 ['r1', 'r2'].forEach(w => {
   $('#p-' + w).addEventListener('input', e => { if (!e.target.matches('.psearch')) return; const q = e.target.value.trim(); ui[w].q = q; $$(`#p-${w} tr.prow`).forEach(r => { r.hidden = !!q && !r.dataset.name.includes(q); }); });
   $('#p-' + w).addEventListener('click', e => halfClick(w, e));
-  $('#p-' + w).addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.mcard, tr[data-act="pad"]')) { e.preventDefault(); const id = e.target.dataset.id; needPw(() => openPad(w, id)); } });
+  $('#p-' + w).addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.mcard, tr[data-act="pad"]')) { e.preventDefault(); const id = e.target.dataset.id; if (Sync.on && Sync.role !== 'op') needPw(() => openPad(w, id)); else openPad(w, id); } });
 });
 
 /* ---------- 숫자 패드 ---------- */
