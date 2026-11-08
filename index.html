@@ -230,7 +230,11 @@ nav.tabs button.optab{border:1px dashed var(--accent2)}
 .syncpill{font-size:.8rem;font-weight:700;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--text);box-shadow:none;transform:none;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 #syncPill.syncpill{background:rgba(0,0,0,.35);box-shadow:none;transform:none}#syncPill.s-ok{border-color:#3ddc97;color:#3ddc97}#syncPill.s-wait{border-color:var(--accent);color:var(--accent)}#syncPill.s-bad{border-color:#ff5d73;color:#ff8a9a}#syncPill.s-off{color:var(--muted)}
 body.viewer nav.tabs button[data-tab="p-part"],body.viewer nav.tabs button[data-tab="p-fine"],body.viewer nav.tabs button[data-tab="p-data"],body.viewer #mcbar{display:none!important}
-body.viewer tr[data-act="pad"],body.viewer .mcard{cursor:default}
+body.viewer tr[data-act="pad"],body.viewer .mcard{cursor:pointer}
+body.viewer [data-act="reset"]{display:none!important}
+.pwin{width:100%;font-size:1.6rem;letter-spacing:.3em;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);background:rgba(0,0,0,.35);color:var(--text)}
+.pwin:focus{border-color:var(--accent);outline:none}
+#rsInput{letter-spacing:.1em}
 body.viewer #effectChips,body.viewer label:has(#soundToggle),body.viewer #seedRow{display:none!important}
 body.viewer [data-act="lock"],body.viewer [data-act="unlock"],body.viewer [data-act="coin"],body.viewer [data-act="manual"],body.viewer [data-act="retie"],body.viewer [data-act="demofill"],body.viewer [data-act="lockdraw"],body.viewer #btnDraw,body.viewer #btnSkip,body.viewer #btnLock,body.viewer #btnUnlock,body.viewer #btnReplay,body.viewer #btnPlaceShow,body.viewer #btnPlaceSkip,body.viewer #btnPlaceLock,body.viewer #btnPlaceUnlock{display:none!important}
 button.primary{transform:rotate(-1.2deg);box-shadow:3px 3px 0 #000;letter-spacing:-.01em}
@@ -789,6 +793,32 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
     <details class="small muted" id="padHistWrap"><summary>수정 이력</summary><ol id="padHist"></ol></details>
   </div>
 </div>
+<!-- 점수 비밀번호(11/8 대표: 점수 입력 최초 1회) -->
+<div id="pwm" class="modal" hidden role="dialog" aria-modal="true" aria-label="점수 입력 비밀번호">
+  <div class="sheet">
+    <h2>🔑 점수 입력 비밀번호</h2>
+    <p class="muted small">점수를 입력·수정·초기화하는 사람만 넣습니다. 이 기기에서 <b>처음 한 번만</b> 묻습니다.</p>
+    <input id="pwInput" class="pwin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" placeholder="비밀번호">
+    <div id="pwWarn" class="notice red" hidden></div>
+    <div class="row padbtns">
+      <button class="ghost" id="pwCancel">취소</button><span class="spacer"></span>
+      <button class="primary" id="pwOk">확인</button>
+    </div>
+  </div>
+</div>
+<!-- 점수 초기화(11/8 대표: 「초기화」를 입력해야만) -->
+<div id="rsm" class="modal" hidden role="dialog" aria-modal="true" aria-label="점수 초기화">
+  <div class="sheet">
+    <h2 id="rsTitle">점수 초기화</h2>
+    <p class="notice red" id="rsMsg"></p>
+    <p class="small">진행하려면 아래 칸에 <b>초기화</b> 라고 입력하세요.</p>
+    <input id="rsInput" class="pwin" type="text" autocomplete="off" maxlength="10" placeholder="초기화">
+    <div class="row padbtns">
+      <button class="ghost" id="rsCancel">취소</button><span class="spacer"></span>
+      <button class="danger" id="rsOk" disabled>초기화</button>
+    </div>
+  </div>
+</div>
 <!-- 동률 결정(동전 던지기 / 직접 지정) -->
 <div id="coin" class="modal" hidden role="dialog" aria-modal="true" aria-label="동률 결정">
   <div class="sheet coin-sheet">
@@ -1259,8 +1289,8 @@ const SYNC_DB = (() => {   // 검증용: 이 기기(localhost)에서 연 화면�
   return (b && loc && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/v1\/projects\/uddt-warwar-1114\/databases\/\(default\)\/documents$/.test(b)) ? b : 'https://firestore.googleapis.com/v1/projects/uddt-warwar-1114/databases/(default)/documents';
 })();
 const SYNC_DOC = 'projects/uddt-warwar-1114/databases/(default)/documents';
-const OP_KEY = 'uddt_op_code', SYNC_BASE_KEY = 'uddt_sync_base', DEV_KEY = 'uddt_dev_key', DEV_OK = 'uddt_dev_ok';
-const Sync = { role: 'local', on: false, code: '', devK: '', devH: '', devOk: false, pending: false, base: null, baseTime: '', busy: false, dirty: false, timer: 0, pushTimer: 0, lastOk: 0, lastChange: 0, err: '', state: '' };
+const OP_KEY = 'uddt_op_code', SYNC_BASE_KEY = 'uddt_sync_base', DEV_KEY = 'uddt_dev_key', DEV_OK = 'uddt_dev_ok', PW_OK = 'uddt_score_pw_ok';
+const Sync = { role: 'local', on: false, code: '', devK: '', devH: '', devOk: false, pwOk: false, pending: false, base: null, baseTime: '', busy: false, dirty: false, timer: 0, pushTimer: 0, lastOk: 0, lastChange: 0, err: '', state: '' };
 function stableStr(x){ return x === undefined ? undefined : JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.keys(v).sort().reduce((o, kk) => { o[kk] = v[kk]; return o; }, {}) : v); }
 function isPlainObj(x){ return !!x && typeof x === 'object' && !Array.isArray(x); }
 /* 3방향 합치기: o=마지막 공용본, a=이 기기, b=지금 공용본. 한쪽만 바꾼 칸은 바꾼 쪽, 둘 다 바꾼 같은 칸은 이 기기 입력 */
@@ -1337,6 +1367,61 @@ async function syncCheckDev(){
   load(); renderAll(); syncRoleUi();
   toast('이 기기가 운영자 기기로 승인됐습니다 · 입력하면 모든 휴대폰에 바로 보입니다', 4000);
   await syncInitOp();
+}
+/* 점수 비밀번호(11/8 대표 「점수 입력시 최초 1회 비밀번호」): 비밀번호는 사이트 코드에 없고 서버 규칙(gate)만 대조한다.
+   맞으면 이 기기는 운영자 기기가 된다(dev/<해시> via='pw') — 총괄이사 승인 없이도 입력 가능. 틀리면 403 */
+async function syncEnsureKey(){
+  if (Sync.devK) return true;
+  if (!(window.crypto && crypto.subtle && crypto.getRandomValues)) return false;
+  const b = new Uint8Array(32); crypto.getRandomValues(b);
+  const k = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(DEV_KEY, k); } catch (e) { return false; }
+  Sync.devK = k; Sync.devH = await sha256hex(k); return true;
+}
+async function syncPwVerify(pw){
+  if (!(await syncEnsureKey())) return { ok: false, msg: '이 브라우저에서는 사용할 수 없습니다(다른 브라우저로 열어 주세요)' };
+  const now = new Date().toISOString();
+  const gate = { update: { name: `${SYNC_DOC}/gate/${Sync.devH}`, fields: { p: { stringValue: pw }, at: { timestampValue: now } } } };
+  const dev = { update: { name: `${SYNC_DOC}/dev/${Sync.devH}`, fields: { at: { timestampValue: now }, via: { stringValue: 'pw' } } }, currentDocument: { exists: false } };
+  const post = writes => fetch(SYNC_DB + ':commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ writes }) });
+  let r;
+  try {
+    r = await post(Sync.role === 'op' ? [gate] : [gate, dev]);
+    if (!r.ok && r.status !== 403 && Sync.role !== 'op') r = await post([gate]);   // 이미 승인된 기기(dev 있음) → 비밀번호만 확인
+  } catch (e) { return { ok: false, msg: '인터넷 연결이 필요합니다(처음 한 번만 확인)' }; }
+  if (r.status === 403) return { ok: false, msg: '비밀번호가 맞지 않습니다' };
+  if (!r.ok) return { ok: false, msg: '확인 실패(' + r.status + ') · 잠시 뒤 다시' };
+  try { localStorage.setItem(PW_OK, '1'); } catch (e) {}
+  Sync.pwOk = true;
+  $('#pwm').hidden = true;                                       // 창이 열려 있으면 공유가 미뤄지므로 먼저 닫는다
+  if (Sync.role !== 'op') {
+    try { localStorage.setItem(DEV_OK, '1'); } catch (e) {}
+    Sync.devOk = true; Sync.pending = false; Sync.role = 'op'; Sync.base = null; Sync.baseTime = ''; syncLoadBase();
+    load(); renderAll(); syncRoleUi();
+    await syncInitOp(); clearTimeout(Sync.timer); Sync.timer = setTimeout(syncPoll, 5000);
+  }
+  return { ok: true };
+}
+/* 점수 조작 전 관문: 공유 모드에서 이 기기가 아직 비밀번호를 안 넣었으면 묻는다(오프라인 전용·자체검사·데모는 묻지 않음) */
+const PwGate = { then: null, busy: false };
+function needPw(then){
+  if (!Sync.on || (Sync.pwOk && Sync.role === 'op')) { then(); return; }
+  PwGate.then = then; $('#pwInput').value = ''; $('#pwWarn').hidden = true; $('#pwOk').disabled = false;
+  $('#pwm').hidden = false; setTimeout(() => $('#pwInput').focus(), 50);
+}
+function closePw(){ $('#pwm').hidden = true; PwGate.then = null; }
+async function pwSubmit(){
+  if (PwGate.busy) return;
+  const v = $('#pwInput').value.trim(), w = $('#pwWarn');
+  if (!v) { w.hidden = false; w.textContent = '비밀번호를 입력하세요'; return; }
+  if (/^[a-z0-9-]{8,64}$/i.test(v) && !/^\d+$/.test(v)) { closePw(); syncEnterCode(v); return; }   // 운영자 코드(예전 방식)도 받는다
+  PwGate.busy = true; $('#pwOk').disabled = true; $('#pwOk').textContent = '확인 중…';
+  const res = await syncPwVerify(v);
+  PwGate.busy = false; $('#pwOk').disabled = false; $('#pwOk').textContent = '확인';
+  if (!res.ok) { w.hidden = false; w.textContent = res.msg; $('#pwInput').select(); return; }
+  const then = PwGate.then; closePw();
+  toast('확인됐습니다 · 이 기기에서 점수를 입력하면 모든 휴대폰에 바로 보입니다', 3500);
+  if (then) then();
 }
 async function syncCommit(pub, preTime){
   const v = String(Date.now() * 1000 + Math.floor(Math.random() * 1000)), now = new Date().toISOString();
@@ -1459,8 +1544,8 @@ async function syncEnterCode(code){
   return true;
 }
 function syncLogout(){
-  try { localStorage.removeItem(OP_KEY); localStorage.removeItem(SYNC_BASE_KEY); localStorage.removeItem(DEV_KEY); localStorage.removeItem(DEV_OK); } catch (e) {}
-  Sync.devK = ''; Sync.devH = ''; Sync.devOk = false; Sync.pending = false;
+  try { localStorage.removeItem(OP_KEY); localStorage.removeItem(SYNC_BASE_KEY); localStorage.removeItem(DEV_KEY); localStorage.removeItem(DEV_OK); localStorage.removeItem(PW_OK); } catch (e) {}
+  Sync.devK = ''; Sync.devH = ''; Sync.devOk = false; Sync.pwOk = false; Sync.pending = false;
   Sync.code = ''; Sync.role = 'local'; Sync.base = null; Sync.baseTime = ''; Sync.dirty = false; clearTimeout(Sync.pushTimer);
   syncRoleUi(); syncPoll();                                     // 공용본이 있으면 보기 전용으로 바뀐다
 }
@@ -1476,7 +1561,7 @@ function syncPill(){
   } else if (Sync.role === 'viewer') {
     if (Sync.err) { cls = 'bad'; txt = '📡 ' + Sync.err; }
     else txt = '📡 실시간 · ' + hm(Sync.lastOk) + ' 확인';
-  } else if (Sync.pending) { cls = 'wait'; txt = '⏳ 운영자 승인 대기 · 기기번호 ' + syncDevNo() + (Sync.role === 'viewer' ? ' · 지금은 보기 전용' : ' · 승인되면 자동 공유'); }
+  } else if (Sync.pending) { cls = 'wait'; txt = '⏳ 운영자 승인 대기 · 기기번호 ' + syncDevNo() + (Sync.role === 'viewer' ? ' · 지금은 보기 전용' : ' · 눌러서 비밀번호 입력'); }
   else { cls = 'off'; txt = '💾 이 기기에만 저장 · 운영자 연결'; }
   el.className = 'syncpill s-' + cls; el.textContent = txt;
 }
@@ -1493,7 +1578,8 @@ function syncRoleUi(){
 }
 /* 보기 전용: 화면 이동·보기 전환·출력·발표 보기만 허용, 나머지 조작은 막는다 */
 function viewerAllowed(t){
-  if (t.closest('nav.tabs') || t.closest('#syncPill') || t.closest('#show') || t.closest('a')) return true;
+  if (t.closest('nav.tabs') || t.closest('#syncPill') || t.closest('#show') || t.closest('a') || t.closest('#pwm')) return true;
+  if (t.dataset.act === 'pad') return true;   // 경기 줄 → 점수 비밀번호 창(맞으면 운영자 기기)
   if (['sub', 'view', 'go', 'print', 'proj'].includes(t.dataset.act)) return true;
   if (t.matches('.psearch')) return true;
   return ['btnEnter', 'btnPng', 'btnProj', 'exitProj', 'btnGoR1', 'btnPlaceProj', 'btnShow', 'btnResultPng', 'btnPng2'].includes(t.id);
@@ -1509,16 +1595,14 @@ function viewerAllowed(t){
 function syncStart(){
   if (SELFTEST || DEMO || qs.get('local') === '1' || typeof fetch !== 'function') return;
   Sync.on = true;
-  try { Sync.code = localStorage.getItem(OP_KEY) || ''; } catch (e) {}
+  try { Sync.code = localStorage.getItem(OP_KEY) || ''; Sync.pwOk = localStorage.getItem(PW_OK) === '1'; } catch (e) {}
   const opArg = qs.get('op');
   if (opArg) { try { const u = new URL(location.href); u.searchParams.delete('op'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {} }
   const pill = document.getElementById('syncPill');
   if (pill) pill.addEventListener('click', () => {
     if (Sync.role === 'op') { if (confirm('이 기기의 운영자 연결을 끌까요?\n(이 기기 데이터는 그대로 남고, 화면은 공용 점수판 보기로 바뀝니다)')) syncLogout(); }
     else {
-      const c = prompt('운영자 코드(점수 입력 담당만)' + (Sync.pending ? '\n\n승인 대기 중 · 기기번호 ' + syncDevNo() : '\n\n코드가 없으면 비워 두고 [확인] → 이 기기 승인 요청(기기번호 표시)'));
-      if (c) syncEnterCode(c);
-      else if (c === '') syncRequestDev().then(() => toast('승인 요청 · 기기번호 ' + syncDevNo() + ' · 총괄이사 승인 뒤 자동으로 운영자 기기가 됩니다', 5000));
+      needPw(() => {});
     }
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPoll(); });
@@ -2704,6 +2788,52 @@ function unlockPlacement(force){
   return true;
 }
 
+/* ---------- 점수 초기화(11/8 대표: 전반전·후반전 각각, 「초기화」 입력해야만) ---------- */
+const Reset = { which: null };
+function resetInfo(which){
+  const b = state.bracket, h = b[which]; if (!h) return null;
+  const n = scoredCount(h), ties = Object.keys(h.ties || {}).length;
+  const later = which === 'r1' && ((b.place && b.place.locked) || b.r2);
+  return { n, ties, locked: !!h.locked, later, n2: which === 'r1' ? scoredCount(b.r2) : 0 };
+}
+function openReset(which){
+  const i = resetInfo(which), label = HALF_LABEL[which];
+  if (!i) { toast(`${label} 경기표가 없습니다`); return false; }
+  if (!i.n && !i.ties && !i.locked && !i.later) { toast(`${label}에 지울 점수가 없습니다`); return false; }
+  Reset.which = which;
+  $('#rsTitle').textContent = `🧹 ${label} 점수 초기화`;
+  const parts = [`${label} 점수 ${i.n}경기를 모두 지웁니다.`];
+  if (i.ties) parts.push(`동률 결정 ${i.ties}건도 지웁니다.`);
+  if (i.locked) parts.push(`${label} 확정(잠금)도 풀립니다.`);
+  if (i.later) parts.push(`전반전 결과로 만든 후반전 배치${i.n2 ? `와 후반전 점수 ${i.n2}경기` : ''}도 함께 지워집니다.`);
+  parts.push('모든 휴대폰 화면에도 바로 반영됩니다. (⚙ 데이터·설정 → 되돌리기로 복구 가능)');
+  $('#rsMsg').innerHTML = parts.map(esc).join('<br>');
+  $('#rsInput').value = ''; $('#rsOk').disabled = true;
+  $('#rsm').hidden = false; setTimeout(() => $('#rsInput').focus(), 50);
+  return true;
+}
+function closeReset(){ $('#rsm').hidden = true; Reset.which = null; }
+function resetHalf(which, word){
+  if (String(word || '').trim() !== '초기화') return false;
+  const b = state.bracket, h = b[which]; if (!h) return false;
+  pushUndo(HALF_LABEL[which] + ' 점수 초기화 전');
+  try { localStorage.setItem('uddt_backup_before_reset_' + which + '_' + Date.now(), JSON.stringify(state)); } catch (e) {}
+  h.scores = {}; h.ties = {}; h.locked = false; h.lockedAt = null;
+  if (which === 'r1') { b.place = null; b.r2 = null; b.placeTies = {}; }
+  save(); renderStage2();
+  toast(`${HALF_LABEL[which]} 점수를 초기화했습니다`, 3000);
+  return true;
+}
+$('#rsInput').addEventListener('input', () => { $('#rsOk').disabled = $('#rsInput').value.trim() !== '초기화'; });
+$('#rsInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !$('#rsOk').disabled) $('#rsOk').click(); });
+$('#rsOk').addEventListener('click', () => { const w = Reset.which; if (w && resetHalf(w, $('#rsInput').value)) closeReset(); });
+$('#rsCancel').addEventListener('click', closeReset);
+$('#rsm').addEventListener('click', e => { if (e.target.id === 'rsm') closeReset(); });
+$('#pwOk').addEventListener('click', pwSubmit);
+$('#pwCancel').addEventListener('click', closePw);
+$('#pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') pwSubmit(); });
+$('#pwm').addEventListener('click', e => { if (e.target.id === 'pwm') closePw(); });
+
 /* ---------- 점수 저장 ---------- */
 function setScore(which, id, a, b){
   const h = state.bracket[which]; const prev = h.scores[id];
@@ -2916,6 +3046,7 @@ function renderHalf(which){
   if (state.demo && editable && !ev.allScored) tools += '<button class="ghost" data-act="demofill">🎲 데모: 남은 점수 채우기</button>';
   if (u.sub === 'match') tools += `<button class="ghost" data-act="print" data-g="all">🖨 전체 조 출력</button>`;
   tools += `<button class="ghost" data-act="proj">빔</button>`;
+  tools += `<button class="danger" data-act="reset">🧹 ${label} 점수 초기화</button>`;
   if (h.locked) tools += `<span class="badge lock">확정 ${fmtTime(h.lockedAt)}</span><button class="danger" data-act="unlock">확정 해제</button>` + (which === 'r1' ? '<button class="primary" data-act="go" data-tab="p-place">후반전 배치로 ▶</button>' : '<button class="primary" data-act="go" data-tab="p-award">시상·급수로 ▶</button>');
   else tools += `<button class="ok" data-act="lock" ${ev.ready ? '' : 'title="모든 점수 입력·동률 결정 후 확정"'}>${label} 확정(잠금)</button>`;
   tools += '</div>';
@@ -2949,7 +3080,8 @@ function halfClick(which, e){
   const act = t.dataset.act, u = ui[which];
   if (act === 'sub') { u.sub = t.dataset.sub; renderHalf(which); }
   else if (act === 'view') { u.view = t.dataset.view; renderHalf(which); }
-  else if (act === 'pad') openPad(which, t.dataset.id);
+  else if (act === 'pad') { const id = t.dataset.id; needPw(() => openPad(which, id)); }
+  else if (act === 'reset') needPw(() => openReset(which));
   else if (act === 'lock') lockHalf(which);
   else if (act === 'unlock') unlockHalf(which, false);
   else if (act === 'go') showTab(t.dataset.tab);
@@ -2963,7 +3095,7 @@ function halfClick(which, e){
 ['r1', 'r2'].forEach(w => {
   $('#p-' + w).addEventListener('input', e => { if (!e.target.matches('.psearch')) return; const q = e.target.value.trim(); ui[w].q = q; $$(`#p-${w} tr.prow`).forEach(r => { r.hidden = !!q && !r.dataset.name.includes(q); }); });
   $('#p-' + w).addEventListener('click', e => halfClick(w, e));
-  $('#p-' + w).addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.mcard, tr[data-act="pad"]')) { e.preventDefault(); openPad(w, e.target.dataset.id); } });
+  $('#p-' + w).addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.mcard, tr[data-act="pad"]')) { e.preventDefault(); const id = e.target.dataset.id; needPw(() => openPad(w, id)); } });
 });
 
 /* ---------- 숫자 패드 ---------- */
