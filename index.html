@@ -399,13 +399,15 @@ table.ptable td[data-label]::before{content:none}
 @keyframes kwang{0%{transform:scale(3.2) rotate(-40deg);opacity:0}35%{transform:scale(.9) rotate(-12deg);opacity:1}75%{transform:scale(1) rotate(-14deg);opacity:1}100%{transform:scale(1) rotate(-14deg);opacity:0}}
 
 /* 순위표 */
-.rankgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.rankgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:12px}
 .rcard{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto;position:relative}
 .rcard .head{padding:8px 12px;font-weight:900;display:flex;justify-content:space-between;align-items:center;color:#111;border-radius:12px 12px 0 0}
 .rcard table{width:100%;border-collapse:collapse}
 .rcard th{white-space:nowrap}
 .rcard th,.rcard td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:center}
-.rcard td.nm{text-align:left;font-weight:800}
+.rcard td.nm{text-align:left;font-weight:800;white-space:nowrap}
+.rcard td.nm .stamp{font-size:.74rem;padding:0 6px;border-width:3px;margin-left:5px;vertical-align:middle;line-height:1.35}
+.rcard tr.lastrow td{padding-top:9px;padding-bottom:9px}
 .rcard tr.tie td{background:rgba(255,169,77,.13)}
 .rcard tr.lastrow td{background:rgba(215,38,61,.12)}
 .rcard .tiebar{padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid var(--line)}
@@ -577,11 +579,11 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 .pcard[data-g="자강"] .pf{background:linear-gradient(160deg,#fff7c9,#f2c230 55%,#c99400);box-shadow:0 0 0 6px #ffd84a,0 0 90px 20px rgba(255,210,60,.75),12px 14px 0 rgba(0,0,0,.5)}
 .pcard[data-g="준자강"] .pf{background:linear-gradient(160deg,#ffffff,#d9dde6 60%,#a7afbf);box-shadow:0 0 70px 12px rgba(220,230,255,.55),12px 14px 0 rgba(0,0,0,.5)}
 .pcard[data-g="일반인"] .pf{background:linear-gradient(160deg,#f2f2f5,#c9c9d3);filter:saturate(.6)}
-.stamp{position:absolute;left:84%;top:3%;z-index:5;white-space:nowrap;font-weight:900;font-size:clamp(18px,3.2vw,40px);color:#e0002a;border:6px solid #e0002a;border-radius:14px;padding:2px 16px;background:rgba(255,255,255,.95);letter-spacing:.02em;transform:translate(-50%,-50%) rotate(12deg);animation:stampIn .45s cubic-bezier(.3,1.9,.5,1) both;box-shadow:0 8px 0 rgba(0,0,0,.35)}
-.stamp.s2{left:18%;top:99%;font-size:clamp(16px,2.8vw,34px);color:#1b6d2a;border-color:#1b6d2a;transform:translate(-50%,-50%) rotate(-8deg);animation-delay:.5s}
-@keyframes stampIn{0%{transform:translate(-50%,-50%) rotate(12deg) scale(4);opacity:0}70%{transform:translate(-50%,-50%) rotate(12deg) scale(.92);opacity:1}100%{transform:translate(-50%,-50%) rotate(12deg) scale(1)}}
-.stamp.s2{animation-name:stampIn2}
-@keyframes stampIn2{0%{transform:translate(-50%,-50%) rotate(-8deg) scale(4);opacity:0}70%{transform:translate(-50%,-50%) rotate(-8deg) scale(.92);opacity:1}100%{transform:translate(-50%,-50%) rotate(-8deg) scale(1)}}
+.ilst{position:absolute;left:84%;top:3%;z-index:5;white-space:nowrap;font-weight:900;font-size:clamp(18px,3.2vw,40px);color:#e0002a;border:6px solid #e0002a;border-radius:14px;padding:2px 16px;background:rgba(255,255,255,.95);letter-spacing:.02em;transform:translate(-50%,-50%) rotate(12deg);animation:ilStampIn .45s cubic-bezier(.3,1.9,.5,1) both;box-shadow:0 8px 0 rgba(0,0,0,.35)}
+.ilst.s2{left:18%;top:99%;font-size:clamp(16px,2.8vw,34px);color:#1b6d2a;border-color:#1b6d2a;transform:translate(-50%,-50%) rotate(-8deg);animation-delay:.5s}
+@keyframes ilStampIn{0%{transform:translate(-50%,-50%) rotate(12deg) scale(4);opacity:0}70%{transform:translate(-50%,-50%) rotate(12deg) scale(.92);opacity:1}100%{transform:translate(-50%,-50%) rotate(12deg) scale(1)}}
+.ilst.s2{animation-name:ilStampIn2}
+@keyframes ilStampIn2{0%{transform:translate(-50%,-50%) rotate(-8deg) scale(4);opacity:0}70%{transform:translate(-50%,-50%) rotate(-8deg) scale(.92);opacity:1}100%{transform:translate(-50%,-50%) rotate(-8deg) scale(1)}}
 #show.final .show-strip{display:none}
 #show.siren::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:7;animation:siren .5s steps(2) 3}
 @keyframes siren{0%{box-shadow:inset 0 0 160px 40px rgba(255,0,40,.75)}100%{box-shadow:inset 0 0 160px 40px rgba(0,90,255,.75)}}
@@ -621,7 +623,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 .dinnerbox .dthumb{width:110px;border-radius:10px;border:2px solid var(--line);flex:none}
 .dinnerbox .dmap{height:220px;flex:1 1 260px;border-width:2px}
 .dinnerbox .dtime{display:inline-block;background:#ff2e5f;color:#fff;font-weight:900;border-radius:8px;padding:1px 10px}
-@media (max-width:700px){.dinner{grid-template-columns:1fr;gap:10px;overflow:auto}.dinner .dphoto{max-height:26vh;aspect-ratio:auto;height:26vh}.dinner .drow{flex-direction:row}.stamp{font-size:17px;border-width:4px;padding:1px 10px;left:78%}.stamp.s2{font-size:15px;left:24%}}
+@media (max-width:700px){.dinner{grid-template-columns:1fr;gap:10px;overflow:auto}.dinner .dphoto{max-height:26vh;aspect-ratio:auto;height:26vh}.dinner .drow{flex-direction:row}.ilst{font-size:17px;border-width:4px;padding:1px 10px;left:78%}.ilst.s2{font-size:15px;left:24%}}
 @media (prefers-reduced-motion:reduce){.rays,.spot,.pcard .pf::after,.dinner .dphoto img,.dinner .dtime,.dmap .pin i,.dmap .ring,.dmap .route{animation:none!important}}
 
 /* 저사양·모션 축소 */
@@ -2616,7 +2618,7 @@ async function runSelfTest(mode){
       const iI = Show.steps.findIndex(s => s.t === 'card' && s.row.grade === '일반인');
       t = performance.now(); await showGo(iI); const dI = Math.round(performance.now() - t);
       ok('fx_show_ilban_lips', !!$('#showStage .lips') && $$('#showStage .kk').length === 3 && /ㅋㅋㅋ/.test($('#showStage').textContent), dI + 'ms');
-      ok('fx_show_ilban_stamp', $$('#showStage .stamp').length === 2 && /민턴인 아님/.test($('#showStage').textContent) && /일반인 확정/.test($('#showStage').textContent) && !!$('#showStage .rays.red'));
+      ok('fx_show_ilban_stamp', $$('#showStage .ilst').length === 2 && /민턴인 아님/.test($('#showStage').textContent) && /일반인 확정/.test($('#showStage').textContent) && !!$('#showStage .rays.red'));
       ok('award_dinner_box', /도봉산갈비/.test($('#p-award').textContent) && /12시 30분까지/.test($('#p-award').textContent));
       t = performance.now(); await showGo(iJ); const dJ = Math.round(performance.now() - t);
       ok('fx_show_jagang_drum_crown', dJ > 1800 && dJ < 4500 && !!$('#showStage .crown') && !!$('#showStage .rays.gold'), dJ + 'ms');
@@ -3548,7 +3550,7 @@ async function showGo(i){
         card.insertAdjacentHTML('beforeend', lipsHtml());
         for (let k = 0; k < 3; k++) { const s = document.createElement('div'); s.className = 'kk'; s.textContent = 'ㅋㅋㅋ'; s.style.left = (10 + k * 30) + '%'; s.style.top = (5 + (k % 2) * 20) + '%'; s.style.animationDelay = (k * 0.25) + 's'; card.appendChild(s); }
         const ti = Show.steps.slice(0, Show.i + 1).filter(x => x.t === 'card' && x.row.grade === '일반인').length - 1;
-        card.insertAdjacentHTML('beforeend', '<div class="stamp">민턴인 아님 🙅</div><div class="stamp s2">일반인 확정 ✔</div>');
+        card.insertAdjacentHTML('beforeend', '<div class="ilst">민턴인 아님 🙅</div><div class="ilst s2">일반인 확정 ✔</div>');
         $('#pcSub').textContent = ILBAN_TEASE[Math.max(0, ti) % ILBAN_TEASE.length]; Sound.boom(); shakeEl(stage); setTimeout(() => { Sound.boom(); shakeEl(stage); }, 500);
         Sound.tick(); setTimeout(() => Sound.tick(), 160); setTimeout(() => Sound.tick(), 320);
       } else if (big) {
