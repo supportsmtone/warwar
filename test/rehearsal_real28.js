@@ -71,7 +71,13 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   // 0. 세부 URL: /players/ → /#players
   await until(`location.hash==='#players' && document.readyState==='complete' && !!document.querySelector('#p-part.active')`, 15000);
   check('세부 URL /players/ → 참가자 화면', true, await ev('location.pathname.slice(-11)+location.hash'));
-  await ev('window.confirm = () => true; window.__plays=[]; const _p=HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play=function(){ window.__plays.push({src:(this.src||"").split("/audio/")[1]||this.src, t:Date.now(), ov:(document.getElementById("overlay")||{}).textContent||""}); return _p.apply(this, arguments); }; true');   // 리허설 프로필 전용
+  // 11/8: 리허설은 실제 공용 점수판(Firestore)에 닿지 않게 — 주소 차단 + 오프라인 모드(?local=1)로 다시 연다
+  //       (세부 URL 이동은 ?local=1 을 떨어뜨려, 그대로 두면 공유 모드로 열려 실제 서버에 승인 요청을 남기고 점수 비밀번호 창이 뜬다)
+  await send('Network.enable'); await send('Network.setBlockedURLs', { urls: ['*firestore.googleapis.com*'] });
+  await send('Page.navigate', { url: base + '/index.html?local=1#players' });
+  await until(`location.search==='?local=1' && document.readyState==='complete' && !!document.querySelector('#p-part.active')`, 15000);
+  check('리허설은 오프라인 모드(공용 점수판 미접속)', await ev(`location.search==='?local=1' && !document.body.classList.contains('viewer') && document.getElementById('syncPill').hidden`));
+  await ev('window.confirm = () => true; window.__plays=[]; const _p=HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play=function(){ window.__plays.push({src:(this.src||"").split("/audio/")[1]||this.src, t:Date.now(), rate:this.playbackRate, ov:(document.getElementById("overlay")||{}).textContent||""}); return _p.apply(this, arguments); }; true');   // 리허설 프로필 전용
 
   // 1. 참가자 붙여넣기
   await ev(`document.getElementById('pasteBox').value = ${JSON.stringify(listText)}; true`);
@@ -324,13 +330,17 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   await click('#btnShow'); await sleep(600);
   check('발표 모드: 열면 시작 멘트(sh_intro) + MC 표시', (await ev('window.__plays.map(x=>x.src).join(",")')) === 'show/sh_intro.mp3' && /MC 말하는 중/.test(await ev(`document.getElementById('showMc').textContent`)));
   await click('#showAuto');
-  await until('window.__plays.length >= 5', 90000).catch(() => {});
-  const sp = await ev('window.__plays.map(x=>({s:x.src,t:x.t}))');
+  await until('window.__plays.length >= 7', 90000).catch(() => {});
+  const sp = await ev('window.__plays.map(x=>({s:x.src,t:x.t,r:x.rate}))');
   const lastTwo = dom.slice(-2).reverse().map(r => r[1]);   // 발표 순서: 28위 → 27위
-  const wantSeq = ['show/sh_intro.mp3', 'show/sh_ilban.mp3', `names/${NAMES[lastTwo[0]]}.mp3`, `names/${NAMES[lastTwo[1]]}.mp3`, 'show/sh_chosim.mp3'];
-  check('발표 모드 자동 진행: 시작 → 일반인 멘트 → 일반인 2명 실명 → 초심 멘트 순서', JSON.stringify(sp.slice(0, 5).map(x => x.s)) === JSON.stringify(wantSeq), sp.slice(0, 5).map(x => x.s).join(' → '));
+  // 11/8: 일반인은 실명 뒤마다 「민턴인 아닙니다~ 일반인이에요!」(sh_ilban_card)
+  const wantSeq = ['show/sh_intro.mp3', 'show/sh_ilban.mp3', `names/${NAMES[lastTwo[0]]}.mp3`, 'show/sh_ilban_card.mp3', `names/${NAMES[lastTwo[1]]}.mp3`, 'show/sh_ilban_card.mp3', 'show/sh_chosim.mp3'];
+  check('발표 모드 자동 진행: 시작 → 일반인 멘트 → (실명 → 놀리는 멘트)×2 → 초심 멘트 순서', JSON.stringify(sp.slice(0, 7).map(x => x.s)) === JSON.stringify(wantSeq), sp.slice(0, 7).map(x => x.s).join(' → '));
+  check('발표 음성 1.15배속(조금 더 빠르게)', sp.slice(0, 7).every(x => Math.abs((x.r || 0) - 1.15) < 0.01), sp.slice(0, 7).map(x => x.r).join(','));
   const g = i => sp[i + 1] && sp[i + 1].t - sp[i].t;
-  check('발표 멘트 안 잘림(시작 18.8초·일반인 10.4초 다 들은 뒤 다음)', g(0) >= 18500 && g(1) >= 10000, `${Math.round(g(0) / 100) / 10}초 · ${Math.round(g(1) / 100) / 10}초`);
+  // 무음 다듬은 길이 18.2초·14.8초를 1.15배속 → 15.9초·12.9초. 그보다 짧으면 잘린 것
+  check('발표 멘트 안 잘림(시작·일반인 멘트 다 들은 뒤 다음)', g(0) >= 15500 && g(1) >= 12500, `${Math.round(g(0) / 100) / 10}초 · ${Math.round(g(1) / 100) / 10}초`);
+  check('멘트 끝나고 다음까지 빨라짐(이름→다음 카드 간격 4.5초 안)', g(3) > 0 && g(3) < 4500, `${Math.round(g(3) / 100) / 10}초`);
   const strip = await ev(`[...document.querySelectorAll('#showStrip > span')].map(s=>s.textContent)`);
   check('공개된 카드 = 부른 이름(같은 순서)', strip.length >= 2 && strip[0].includes(lastTwo[0]) && strip[1].includes(lastTwo[1]) && /일반인/.test(strip[0]), strip.slice(0, 2).join(' / '));
   await click('#showAuto'); await click('#showMc'); await sleep(200);
