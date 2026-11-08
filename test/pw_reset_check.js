@@ -183,6 +183,24 @@ const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebK
   check('되돌리기 목록에 「전반전 점수 초기화 전」', await pc.ev(`JSON.parse(localStorage.getItem('uddt_undo_v1')||'[]').some(x=>x.label==='전반전 점수 초기화 전')`));
   check('초기화 직후 다시 입력 가능', (await openRow(pc, 'r1', await pc.ev(`document.querySelector('#p-r1 [data-act="pad"]').dataset.id`))) === 'pad' && (await padEnter(pc, '21', '10')) === 'ok');
 
+  log('6b. 조편성 초기화(대회 시작 전 빈 화면)');
+  await pc.click('nav.tabs button[data-tab="p-draw"]'); await sleep(300);
+  check('휴대폰: 조편성 초기화 버튼 안 보임', await ph.ev(`(async()=>{ document.querySelector('nav.tabs button[data-tab="p-draw"]').click(); await new Promise(r=>setTimeout(r,300)); const b=document.getElementById('btnDrawReset'); return !!b && getComputedStyle(b).display==='none' })()`));
+  await pc.click('#btnDrawReset'); await sleep(200);
+  const dmsg = await pc.ev(`document.querySelector('#rsMsg').textContent`);
+  check('조편성 초기화 안내(명단 유지 명시)', /조편성\(추첨\) 결과를 지웁니다/.test(dmsg) && new RegExp(`참가자 명단 ${N}명은 그대로`).test(dmsg), dmsg);
+  check('「조편성」 입력: 버튼 잠김', await typeReset(pc, '조편성'));
+  await typeReset(pc, '초기화'); await pc.click('#rsOk'); await sleep(400);
+  check('운영 PC: 조 칸 비고 「추첨 시작」', await pc.ev(`/아직 추첨하지 않았습니다/.test(document.getElementById('meta').textContent) && document.getElementById('btnDraw').textContent==='추첨 시작' && document.getElementById('groups').children.length===0`));
+  rem = null; await settle(async () => { rem = await remote(); return rem && rem.draw === null; }, 15000);
+  check('공용판: 조편성·전반전·후반전 비움, 명단 그대로', rem && rem.draw === null && !rem.bracket.r1 && !rem.bracket.place && !rem.bracket.r2 && rem.participants.length === N);
+  const t6b = await settle(async () => await ph.ev(`/아직 추첨하지 않았습니다/.test(document.getElementById('meta').textContent) && document.getElementById('groups').children.length===0`), 20000);
+  check('보기 휴대폰: 조편성 빈 화면', t6b >= 0, t6b + 'ms');
+  const t6c = await settle(async () => (await ph2.ev(`(()=>{ const s=JSON.parse(localStorage.getItem('uddt_draw_v1')||'null'); return s && s.draw===null && !s.bracket.r1 })()`)), 20000);
+  check('다른 운영 기기(휴대폰2)도 비움 — 되살아나지 않음', t6c >= 0, t6c + 'ms');
+  await sleep(6000); rem = await remote();
+  check('6초 뒤에도 공용판 비어 있음', rem && rem.draw === null && rem.participants.length === N);
+
   log('7. 규칙(서버) 직접 확인');
   const k = require('node:crypto').randomBytes(32).toString('hex'), h = H(k);
   check('틀린 비밀번호로 gate 차단', await commit([{ update: { name: DOC('gate/' + h), fields: { p: { stringValue: '0000' }, at: ts() } } }]) === 403);

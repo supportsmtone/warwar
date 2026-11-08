@@ -231,7 +231,7 @@ nav.tabs button.optab{border:1px dashed var(--accent2)}
 #syncPill.syncpill{background:rgba(0,0,0,.35);box-shadow:none;transform:none}#syncPill.s-ok{border-color:#3ddc97;color:#3ddc97}#syncPill.s-wait{border-color:var(--accent);color:var(--accent)}#syncPill.s-bad{border-color:#ff5d73;color:#ff8a9a}#syncPill.s-off{color:var(--muted)}
 body.viewer nav.tabs button[data-tab="p-part"],body.viewer nav.tabs button[data-tab="p-fine"],body.viewer nav.tabs button[data-tab="p-data"],body.viewer #mcbar{display:none!important}
 body.viewer tr[data-act="pad"],body.viewer .mcard{cursor:pointer}
-body.viewer [data-act="reset"]{display:none!important}
+body.viewer [data-act="reset"],body.viewer #btnDrawReset{display:none!important}
 .pwin{width:100%;font-size:1.6rem;letter-spacing:.3em;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);background:rgba(0,0,0,.35);color:var(--text)}
 .pwin:focus{border-color:var(--accent);outline:none}
 #rsInput{letter-spacing:.1em}
@@ -724,6 +724,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
     <button id="btnSkip" style="display:none">건너뛰기 ⏩</button>
     <button class="ok" id="btnLock">확정(잠금)</button>
     <button class="danger" id="btnUnlock" style="display:none">잠금 해제</button>
+    <button class="danger" id="btnDrawReset" title="추첨 결과·전반전·후반전을 비우고 참가자 명단만 남깁니다">🧹 조편성 초기화</button>
     <button class="ghost" id="btnPng">PNG 저장</button>
     <button class="ghost" id="btnProj">전체 화면(빔)</button>
   </div>
@@ -2549,6 +2550,14 @@ async function runSelfTest(mode){
       ok('show_crown_for_jagang', !!$('#showStage .crown'));
       $('#showClose').click(); ok('show_closed', $('#show').hidden);
       const rp = renderResultPng(); ok('result_png', !!rp && rp.toDataURL('image/png').length > 5000);
+      showTab('p-draw'); $('#btnDrawReset').click(); await new Promise(r => setTimeout(r, 30));
+      const rsMsg = $('#rsMsg').textContent; const rsi = $('#rsInput');
+      rsi.value = '리셋'; rsi.dispatchEvent(new Event('input')); const lockedWrong = $('#rsOk').disabled;
+      rsi.value = '초기화'; rsi.dispatchEvent(new Event('input')); const openRight = !$('#rsOk').disabled;
+      $('#rsOk').click(); await new Promise(r => setTimeout(r, 30));
+      ok('draw_reset_typed_only', lockedWrong && openRight && /참가자 명단 \d+명은 그대로/.test(rsMsg) && /전반전 점수/.test(rsMsg) && /후반전/.test(rsMsg), rsMsg.slice(0, 80));
+      ok('draw_reset_clears', state.draw === null && !state.bracket.r1 && !state.bracket.place && !state.bracket.r2 && state.participants.length === n && $$('#groups .gcard, #groups > *').length === 0 && /아직 추첨하지 않았습니다/.test($('#meta').textContent) && $('#btnDraw').textContent === '추첨 시작');
+      ok('draw_reset_undo', undo(true) && !!state.draw && state.draw.locked && !!state.bracket.r2);
       // 벌금판
       showTab('p-fine');
       const p0 = state.participants[0].no;
@@ -2869,7 +2878,27 @@ function resetInfo(which){
   const later = which === 'r1' && ((b.place && b.place.locked) || b.r2);
   return { n, ties, locked: !!h.locked, later, n2: which === 'r1' ? scoredCount(b.r2) : 0 };
 }
+function drawResetInfo(){
+  const b = state.bracket;
+  return { draw: !!state.draw, locked: !!(state.draw && state.draw.locked), n1: scoredCount(b.r1), place: !!(b.place && b.place.locked), n2: scoredCount(b.r2), people: state.participants.length };
+}
 function openReset(which){
+  if (which === 'draw') {   // 11/8 대표: 조편성 메뉴 초기화 — 대회 시작 전 화면에 이름이 미리 들어가 있지 않게
+    const i = drawResetInfo();
+    if (!i.draw && !i.n1 && !i.place && !i.n2) { toast('지울 조편성이 없습니다'); return false; }
+    Reset.which = 'draw';
+    $('#rsTitle').textContent = '🧹 조편성 초기화';
+    const parts = ['조편성(추첨) 결과를 지웁니다 — 조 칸이 빈 처음 화면으로 돌아갑니다.'];
+    if (i.locked) parts.push('조편성 확정(잠금)도 풀립니다.');
+    if (i.n1) parts.push(`전반전 점수 ${i.n1}경기도 함께 지워집니다.`);
+    if (i.place || i.n2) parts.push(`후반전 배치${i.n2 ? `와 후반전 점수 ${i.n2}경기` : ''}도 함께 지워집니다.`);
+    parts.push(`참가자 명단 ${i.people}명은 그대로 남습니다.`);
+    parts.push('모든 휴대폰 화면에도 바로 반영됩니다. (⚙ 데이터·설정 → 되돌리기로 복구 가능)');
+    $('#rsMsg').innerHTML = parts.map(esc).join('<br>');
+    $('#rsInput').value = ''; $('#rsOk').disabled = true;
+    $('#rsm').hidden = false; setTimeout(() => $('#rsInput').focus(), 50);
+    return true;
+  }
   const i = resetInfo(which), label = HALF_LABEL[which];
   if (!i) { toast(`${label} 경기표가 없습니다`); return false; }
   if (!i.n && !i.ties && !i.locked && !i.later) { toast(`${label}에 지울 점수가 없습니다`); return false; }
@@ -2888,6 +2917,16 @@ function openReset(which){
 function closeReset(){ $('#rsm').hidden = true; Reset.which = null; }
 function resetHalf(which, word){
   if (String(word || '').trim() !== '초기화') return false;
+  if (which === 'draw') {
+    pushUndo('조편성 초기화 전');
+    try { localStorage.setItem('uddt_backup_before_reset_draw_' + Date.now(), JSON.stringify(state)); } catch (e) {}
+    Anim.cancel();
+    const fines = state.bracket.fines;   // 벌금·출석 표시는 이 기기 운영 기록이라 남긴다
+    state.draw = null; state.bracket = Object.assign(defaultBracket(), { fines: fines || { marks: {} } });
+    save(); renderAll();
+    toast('조편성을 초기화했습니다 · 참가자 명단은 그대로입니다', 3000);
+    return true;
+  }
   const b = state.bracket, h = b[which]; if (!h) return false;
   pushUndo(HALF_LABEL[which] + ' 점수 초기화 전');
   try { localStorage.setItem('uddt_backup_before_reset_' + which + '_' + Date.now(), JSON.stringify(state)); } catch (e) {}
@@ -2897,6 +2936,7 @@ function resetHalf(which, word){
   toast(`${HALF_LABEL[which]} 점수를 초기화했습니다`, 3000);
   return true;
 }
+$('#btnDrawReset').addEventListener('click', () => needPw(() => openReset('draw')));
 $('#rsInput').addEventListener('input', () => { $('#rsOk').disabled = $('#rsInput').value.trim() !== '초기화'; });
 $('#rsInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !$('#rsOk').disabled) $('#rsOk').click(); });
 $('#rsOk').addEventListener('click', () => { const w = Reset.which; if (w && resetHalf(w, $('#rsInput').value)) closeReset(); });
