@@ -1110,6 +1110,8 @@ const DrawCore = (function(){
     for (const [k, c] of seenName) if (c > 1) errors.push(`같은 이름이 ${c}명: 「${k}」 — 구분 표기(예: ${k}A / ${k}B)가 필요합니다.`);
     return errors;
   }
+  // 11/14 대표 지시: 전반전 조편성에서 무조건 1조에 두는 이름(정확히 일치, 앞뒤 공백 무시).
+  const FIXED_GROUP1_NAMES = ['김영화'];
   // 핵심: 참가자(출석자) + 시드 → 조 배치. 결과는 연출과 무관하게 여기서 확정된다.
   function assignGroups(participants, seed){
     if (seed === undefined || seed === null || String(seed) === '') throw new Error('seed 필요');
@@ -1120,6 +1122,14 @@ const DrawCore = (function(){
     const { sizes, generalized } = groupSizes(n);
     const rng = makeRng(seed);
     const order = shuffle(list, rng);        // order[k] = 추첨 순번 k+1 (엑셀 RANK 1..N 에 해당)
+    // 11/14 대표 지시 「전반전 대진표 작성할 때 '김영화'는 무조건 1조로 배정」.
+    //   이미 1조 자리(앞 sizes[0]명)에 있으면 아무것도 바꾸지 않는다(그 추첨 번호의 결과·난수 소비가 종전과 동일).
+    //   1조 밖이면 같은 난수로 1조의 한 자리를 골라 서로 맞바꾼다 → 같은 추첨 번호 = 같은 결과(재현) 유지.
+    //   명단에 없으면(결석 포함) 종전과 완전히 동일.
+    for (const fixedName of FIXED_GROUP1_NAMES) {
+      const i = order.findIndex(p => String(p.name).trim() === fixedName);
+      if (i >= sizes[0]) { const j = rng.int(sizes[0]); const t = order[i]; order[i] = order[j]; order[j] = t; }
+    }
     const groups = [];
     let idx = 0;
     sizes.forEach((sz, g) => {
