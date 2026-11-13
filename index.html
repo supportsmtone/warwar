@@ -659,6 +659,34 @@ body #show,body[data-theme] #show{background:url("data:image/svg+xml;utf8,%3Csvg
 @keyframes kkWobble{0%,100%{transform:rotate(-1.5deg) scale(1.02)}50%{transform:rotate(1.5deg) scale(1.05)}}
 @keyframes twinkle{0%,100%{opacity:.75}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){body #show,body[data-theme] #show,.showdeco span{animation:none!important}}
+
+/* ===== 11/13 대표 「조편성·후반전 배치 화면을 크게(빔프로젝터) + 모바일 배열 최적화」 ===== */
+@media (min-width:900px){
+  #groups,#placeGroups.groups5{gap:14px;grid-template-columns:repeat(5,minmax(0,1fr))}
+  #placeGroups .pchip{flex-wrap:wrap;row-gap:0}
+  #groups .card .head,#placeGroups .card .head{font-size:clamp(1.4rem,min(2vw,3.6vh),2.6rem);padding:.4em .6em}
+  #groups .card .head small,#placeGroups .card .head small{font-size:.6em}
+  #groups .card .members,#placeGroups .card .members{gap:min(.8vh,8px);padding:10px}
+  #groups .chip{font-size:clamp(1.3rem,min(2.55vw,4.7vh),3.2rem);padding:.28em .42em;gap:.38em;border-radius:14px;letter-spacing:-.01em}
+  #groups .chip i{width:1.3em;height:1.3em;font-size:.5em}
+  #placeGroups .pchip{font-size:clamp(1.3rem,min(2.3vw,3.9vh),2.9rem);padding:.2em .38em;gap:.3em;border-radius:14px;letter-spacing:-.01em}
+  #placeGroups .pchip .mv{font-size:1em;width:.95em}
+  #placeGroups .pchip small{font-size:max(.4em,14px);flex-basis:100%;margin-left:1.25em;line-height:1.15;margin-top:-.1em}
+  #placeGroups .pchip.up{box-shadow:inset 6px 0 0 #2fd27a}#placeGroups .pchip.down{box-shadow:inset 6px 0 0 #ff4d5e}
+}
+@media (max-width:460px){
+  #groups,#placeGroups.groups5{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  #groups .card,#placeGroups .card{min-height:0}
+  #groups .card .head,#placeGroups .card .head{font-size:1.05rem;padding:7px 9px}
+  #groups .card .head small,#placeGroups .card .head small{font-size:.72rem}
+  #groups .card .members,#placeGroups .card .members{padding:6px;gap:4px}
+  #groups .chip{font-size:1.02rem;padding:6px 7px;gap:6px}
+  #groups .chip i{width:20px;height:20px;font-size:.68rem}
+  #placeGroups .pchip{font-size:1.02rem;padding:5px 7px;gap:4px;flex-wrap:wrap;row-gap:0}
+  #placeGroups .pchip .mv{width:16px;font-size:1rem}
+  #placeGroups .pchip small{flex-basis:100%;margin-left:20px;font-size:.68rem;line-height:1.2}
+  #placeStage.fxstage{padding:6px}
+}
 </style>
 </head>
 <body data-theme="A">
@@ -784,7 +812,7 @@ body #show,body[data-theme] #show{background:url("data:image/svg+xml;utf8,%3Csvg
 <section class="panel" id="p-place">
   <div class="rtools">
     <div class="chips" id="placeModeChips" role="radiogroup" aria-label="배치 방식">
-      <label><input type="radio" name="placeMode" value="overall">전체 개인 성적순(6·6·6·5·5)</label>
+      <label><input type="radio" name="placeMode" value="overall">전체 개인 성적순(1단계와 같은 조 크기)</label>
       <label><input type="radio" name="placeMode" value="excel">엑셀 방식(각 조 1위→1조 + 점수순)</label>
       <label><input type="radio" name="placeMode" value="poster">포스터 방식(각 조 순위→조)</label>
     </div>
@@ -2571,7 +2599,7 @@ async function runSelfTest(mode){
       $('#btnShow').click();
       ok('show_opens', !$('#show').hidden && Show.steps.length > n);
       const tiers = Show.steps.filter(s => s.t === 'tier').map(s => s.grade);
-      ok('show_order_bottom_up', tiers[0] === '일반인' && tiers[tiers.length - 1] === '자강' && Show.steps[Show.steps.length - 3].row.overall === 1 && Show.steps[Show.steps.length - 2].t === 'prize' && Show.steps[Show.steps.length - 1].t === 'dinner');
+      ok('show_order_ilban_last', tiers[0] === '초심' && tiers[tiers.length - 2] === '자강' && tiers[tiers.length - 1] === '일반인' && Show.steps[Show.steps.length - 3].row.overall === n && Show.steps[Show.steps.length - 4].row.overall === n - 1 && Show.steps[Show.steps.length - 2].t === 'prize' && Show.steps[Show.steps.length - 1].t === 'dinner');
       ok('show_ilban_tease_title', /민턴인이 절대 아닙니다\. 일반인이에요!/.test(tierTitle('일반인', 2).join(' ')));
       for (let i = 0; i < 4; i++) { $('#showNext').click(); await new Promise(r => setTimeout(r, 30)); }
       ok('show_lips_for_ilban', Show.steps[Show.i] && (Show.steps[Show.i].t !== 'card' || Show.steps[Show.i].row.grade !== '일반인' || !!$('#showStage .lips')));
@@ -2580,7 +2608,7 @@ async function runSelfTest(mode){
       ok('show_dinner_slide', /12시 30분까지 도착/.test($('#showStage').textContent) && !!$('#showStage .dmap') && $$('#showStage .dmap .lyr img').length === 9 && !!$('#showStage img[src="assets/dinner/qr.png"]') && !!$('#showStage img[src="assets/dinner/front.jpg"]'));
       showGo(Show.steps.length - 2); await new Promise(r => setTimeout(r, 50));
       ok('show_prize_then_dinner_hint', /12월 31일까지/.test($('#showStage').textContent) && /회식/.test($('#showStage').textContent));
-      showGo(Show.steps.length - 3); await new Promise(r => setTimeout(r, 50));
+      showGo(Show.steps.findIndex(s => s.t === 'card' && s.row.grade === '자강')); await new Promise(r => setTimeout(r, 50));   // 11/13: 자강 다음에 일반인이 오므로 위치로 찾음
       ok('show_crown_for_jagang', !!$('#showStage .crown'));
       $('#showClose').click(); ok('show_closed', $('#show').hidden);
       const rp = renderResultPng(); ok('result_png', !!rp && rp.toDataURL('image/png').length > 5000);
@@ -3401,7 +3429,7 @@ function renderPlace(){
   const msg = $('#placeMsg');
   const pmode = locked ? b.place.mode : state.settings.placeMode;
   $('#placeRule').innerHTML = pmode === 'overall'
-    ? '전체 개인 성적순(기본): 전반전 조와 관계없이 28명 전원을 개인 성적(승률×1000+득실차+나이×0.03) 순으로 줄 세워 위에서부터 1조 6명 → 2조 6명 → 3조 6명 → 4조 5명 → 5조 5명(1단계와 같은 조 크기). 같은 점수가 조 경계에 걸리면 동전 또는 직접 지정.'
+    ? (() => { const nP = state.participants.filter(p => !p.absent).length, sz = (b.r1 && b.r1.groups) ? b.r1.groups.map(g => g.members.length) : DrawCore.groupSizes(nP).sizes, tot = sz.reduce((a, c) => a + c, 0); return `전체 개인 성적순(기본): 전반전 조와 관계없이 ${tot}명 전원을 개인 성적(승률×1000+득실차+나이×0.03) 순으로 줄 세워 위에서부터 ${sz.map((c, i) => `${i + 1}조 ${c}명`).join(' → ')}(1단계와 같은 조 크기). 같은 점수가 조 경계에 걸리면 동전 또는 직접 지정.`; })()
     : pmode === 'rank'
     ? '순위별: 전반전 각 조 1위만 후반전 1조, 2위만 2조, 3위만 3조, 4위만 4조, 5위는 5조. 그보다 아래 순위(6위 등)는 5조에 함께 들어갑니다(28명 → 5·5·5·5·8명). 조 안 자리 순서는 점수(승률×1000+득실차+나이×0.03)순.'
     : pmode === 'poster'
@@ -3536,11 +3564,12 @@ function showVoiceFor(st){
   if (st.t === 'dinner') return [{ clip: 'sh_dinner' }];
   return [{ clip: 'sh_outro' }];
 }
-const TIER_ORDER = ['일반인', '초심', 'D', 'C', 'B', 'A', 'S', '준자강', '자강'];
+// 11/13 대표 「일반인을 맨 뒤로 — 우당탕탕 자체대회 주인공은 일반인」: 초심부터 자강까지 올라간 뒤 마지막에 일반인(꼴찌가 맨 마지막)
+const TIER_ORDER = ['초심', 'D', 'C', 'B', 'A', 'S', '준자강', '자강', '일반인'];
 function buildShowSteps(rows){
   const steps = [];
   for (const g of TIER_ORDER) {
-    const ps = rows.filter(r => r.grade === g).sort((a, b) => b.overall - a.overall);
+    const ps = rows.filter(r => r.grade === g).sort((a, b) => g === '일반인' ? a.overall - b.overall : b.overall - a.overall);
     if (!ps.length) continue;
     steps.push({ t: 'tier', grade: g, count: ps.length });
     ps.forEach(r => steps.push({ t: 'card', row: r }));
@@ -3550,9 +3579,9 @@ function buildShowSteps(rows){
   return steps;
 }
 function tierTitle(g, n){
-  if (g === '자강') return ['👑 대망의 자강조!', '오늘의 주인공은…'];
+  if (g === '자강') return ['👑 대망의 자강조!', '최고 실력자는…'];
   if (g === '준자강') return ['🥈 준자강조', '자강까지 한 걸음!'];
-  if (g === '일반인') return ['🚨 일반인 발표 🚨', '민턴인이 절대 아닙니다. 일반인이에요!'];
+  if (g === '일반인') return ['🚨 오늘의 주인공! 일반인 발표 🚨', '민턴인이 절대 아닙니다. 일반인이에요!'];
   if (g === '초심') return ['초심조', `${n}명 — 다시 시작하는 마음으로`];
   return [`${g}조`, `${n}명 발표`];
 }
@@ -3618,7 +3647,7 @@ function openShow(){
   Show.steps = buildShowSteps(rows); Show.i = -1;
   $('#show').hidden = false; $('#show').classList.remove('final'); document.body.classList.add('showing');
   if (document.documentElement.requestFullscreen && !document.fullscreenElement && !SELFTEST && !DEMO) document.documentElement.requestFullscreen().catch(() => {});
-  $('#showStage').innerHTML = '<div class="tierintro">🎤 급수 발표<small>하위 순위부터 한 명씩 — 「다음 ▶」 또는 스페이스</small></div>';
+  $('#showStage').innerHTML = '<div class="tierintro">🎤 급수 발표<small>초심부터 자강까지, 마지막은 오늘의 주인공 일반인! — 「다음 ▶」 또는 스페이스</small></div>';
   showStrip(); Show.stepAt = Date.now(); renderShowMc();
   showSpeak([{ clip: 'sh_intro' }]);   // 발표 시작 멘트(버튼 클릭 직후라 브라우저 자동재생 제한에 안 걸림)
   return true;

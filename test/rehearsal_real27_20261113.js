@@ -350,9 +350,13 @@ const PDF_DIR = process.env.PDF_DIR || '';   // 지정하면 출력 버튼으로
   const tS = Date.now(); await click('#showAuto');
   await until(`document.querySelectorAll('#showStrip > span').length >= 3`, 30000).catch(() => {});
   const strip = await ev(`[...document.querySelectorAll('#showStrip > span')].map(s=>s.textContent)`);
-  const lastTwo = dom.slice(-2).reverse().map(r => r[1]);
-  check('발표 모드 자동 진행(음성 없이): 꼴찌부터 카드 공개', strip.length >= 2 && strip[0].includes(lastTwo[0]) && strip[1].includes(lastTwo[1]) && /일반인/.test(strip[0]), `${strip.slice(0, 2).join(' / ')} · ${Math.round((Date.now() - tS) / 100) / 10}초`);
-  await click('#showAuto'); await click('#showClose'); await sleep(200);
+  const firstChosim = dom.filter(r => r[4] === '초심').slice(-1)[0][1];
+  check('발표 모드 자동 진행(음성 없이): 초심 맨 아래부터 카드 공개(일반인은 맨 뒤)', strip.length >= 2 && strip[0].includes(firstChosim) && /초심/.test(strip[0]) && !strip.some(t => /일반인/.test(t)), `${strip.slice(0, 2).join(' / ')} · ${Math.round((Date.now() - tS) / 100) / 10}초`);
+  await click('#showAuto'); await click('#showAll'); await sleep(600);
+  const all = await ev(`[...document.querySelectorAll('#showStrip > span')].map(s=>s.textContent)`);
+  const ilban = dom.filter(r => r[4] === '일반인').map(r => r[1]);
+  check(`발표 순서: 자강 다음 맨 마지막 일반인(${ilban.join('→')}, 꼴찌가 맨 끝)`, all.length === N && /자강/.test(all[N - 3]) && !/준자강/.test(all[N - 3]) && all[N - 2].includes(ilban[0]) && all[N - 1].includes(ilban[1]) && /일반인/.test(all[N - 1]), all.slice(-3).join(' / '));
+  await click('#showClose'); await sleep(200);
   check('발표 모드 동안 음성 재생 0', await ev('window.__plays.length===0 && window.__tts===0'), String(await ev('window.__plays.length')));
   check('발표 모드 닫기', await ev(`document.getElementById('show').hidden`));
   check('MC 음성 줄 없음(시상)', await ev(`document.getElementById('mcbar').hidden && document.querySelectorAll('#mcbar button').length===0`));
