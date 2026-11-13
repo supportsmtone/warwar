@@ -687,6 +687,44 @@ body #show,body[data-theme] #show{background:url("data:image/svg+xml;utf8,%3Csvg
   #placeGroups .pchip small{flex-basis:100%;margin-left:20px;font-size:.68rem;line-height:1.2}
   #placeStage.fxstage{padding:6px}
 }
+
+/* ===== 11/13 대표 「시상급수 발표 이름 카드가 너무 작다 → 빔에서 이름이 잘 보이게 크게 + 회식 장소 공지도 크게」 =====
+   카드는 무대(남은 화면) 크기에 맞춰 커진다: 폭 92% 또는 높이 76% 중 작은 쪽. 글자·왕관·입술·도장은 카드 폭(--cw)에 비례. */
+#show .show-stage{container-type:size}
+#show .pcard{--cw:min(92cqw, 76cqh * 1.45);width:var(--cw)}
+#show .pcard .pf{gap:calc(var(--cw) * .02);border-width:max(6px, calc(var(--cw) * .012));border-radius:max(18px, calc(var(--cw) * .04))}
+#show .pcard .pb{border-width:max(6px, calc(var(--cw) * .012));border-radius:max(18px, calc(var(--cw) * .04))}
+#show .pcard .rk{font-size:max(16px, calc(var(--cw) * .046))}
+#show .pcard .nm{font-size:calc(var(--cw) * .24);white-space:nowrap;letter-spacing:-.03em}
+#show .pcard .pf .gbadge{font-size:max(18px, calc(var(--cw) * .075));padding:.1em .7em}
+#show .pcard .sub{font-size:max(14px, calc(var(--cw) * .038));text-align:center;padding:0 calc(var(--cw) * .05);line-height:1.3}
+#show .crown{font-size:calc(var(--cw) * .15);line-height:1;top:-.62em;margin-left:-.6em}
+#show .lips{width:calc(var(--cw) * .26);right:calc(var(--cw) * -.09);bottom:calc(var(--cw) * -.08)}
+#show .ilst{font-size:max(15px, calc(var(--cw) * .054));border-width:max(4px, calc(var(--cw) * .009))}
+#show .ilst.s2{font-size:max(14px, calc(var(--cw) * .047))}
+#show .kk{font-size:max(26px, calc(var(--cw) * .065))}
+#show .prizebox{max-width:min(1500px,94cqw);font-size:clamp(16px, min(2.3cqw, 3.5cqh), 42px);max-height:97cqh;overflow:auto;padding:1em 1.4em}
+@media (max-width:700px){#show .lips{right:calc(var(--cw) * -.02)}}
+@media (min-width:900px){
+  #show .show-strip > span{font-size:clamp(14px, .95vw, 20px)}
+  #show .dinner{width:96cqw;max-height:96cqh;grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);gap:2.4cqw}
+  #show .dinner .dphoto{max-height:90cqh}
+  #show .dinner .dphoto .cap{font-size:min(2cqw, 3.2cqh)}
+  #show .dinner .dinfo{gap:1.6cqh}
+  #show .dinner .kick{font-size:min(2.6cqw, 4.2cqh)}
+  #show .dinner .dname{font-size:min(7.4cqw, 11.5cqh)}
+  #show .dinner .dtime{font-size:min(4.4cqw, 6.8cqh);padding:.12em .5em}
+  #show .dinner .daddr{font-size:min(2.5cqw, 4cqh)}
+  #show .dinner .dmap{height:min(36cqh, 560px);max-width:530px}   /* 지도 타일 3×3(768px) 안에서 빈칸이 안 생기는 최대 폭 */
+  #show .dinner .drow{gap:1.6cqw}
+  #show .dinner .dmap .pin{font-size:17px}
+  #show .dinner .dmap .pin.r b{font-size:20px}
+  #show .dinner .dqr{font-size:min(1.5cqw, 2.4cqh)}
+  #show .dinner .dqr img{width:min(16cqw, 29cqh)}
+  #show .prizebox{font-size:clamp(16px, min(2.4cqw, 4.6cqh), 42px)}
+  #show .prizebox ul{columns:2;column-gap:2em}
+  #show .prizebox li{break-inside:avoid}
+}
 </style>
 </head>
 <body data-theme="A">
