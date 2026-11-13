@@ -664,7 +664,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
         <div><div class="hero-kicker">2026 우당탕탕요절복통</div><h1 class="hero-title">송년회 및 자체대회</h1><div class="hero-date">26.11.14(토) · 07:00~10:00 · 태릉중학교 체육관</div></div>
       </div>
       <button class="primary huge" id="btnEnter">입장하기 ▶</button>
-      <div class="intro-links"><a class="linkbtn" id="lnkPosterFull" href="assets/poster_A_full.jpg" target="_blank" rel="noopener">🖼 포스터 원본 크게 보기</a><a class="linkbtn" id="lnkMc" href="mc.html" target="_blank" rel="noopener">🎤 MC 진행 대본·음성</a></div>
+      <div class="intro-links"><a class="linkbtn" id="lnkPosterFull" href="assets/poster_A_full.jpg" target="_blank" rel="noopener">🖼 포스터 원본 크게 보기</a></div>
       <div class="info-grid">
         <div class="info"><h3>⏰ 입장·복장</h3><p>06:45 체육관 입장 시간 기준<br>복장: 단체티 + 검정색 반바지<br><span class="muted small">(단체티 미지급 회원은 검정티)</span><br>참가비 없음 · 기념품 우당탕탕 수건</p></div>
         <div class="info"><h3>💸 벌금</h3><p>지각 <b>3만원</b> · 무단결석 <b>5만원</b><br>복장불량 <b>3만원</b><br>각 조 꼴찌 <b>5천원</b> (전반·후반 전부)<br><span class="muted small">이벤트게임: 벌금 2만원 차감권(1회 한정, 12/31까지)</span></p></div>
@@ -828,7 +828,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
       <label>전반전 시작 <input type="text" id="setR1Start" inputmode="numeric" maxlength="5" placeholder="07:00"></label>
       <label>후반전 시작 <input type="text" id="setR2Start" inputmode="numeric" maxlength="5" placeholder="08:25"></label>
       <label>경기당(분) <input type="number" id="setRoundMin" min="5" max="40"></label>
-      <label>목표 점수 <select id="setTarget"><option>21</option><option>15</option><option>25</option></select></label>
+      <label>목표 점수(6명 조 21점·5명 조 25점은 자동, 그 밖의 인원 조에만 적용) <select id="setTarget"><option>21</option><option>15</option><option>25</option></select></label>
       <label>코트(1~5조) <input type="text" id="setCourts" placeholder="1,2,3,4,5"></label>
     </div>
     <p class="muted small">코트 = 조 번호 기본(1조→1코트). 라운드 시각 = 시작 + (라운드−1)×경기당 분. 배치 방식·급수 기준은 4·6번 화면에서 고릅니다.</p>
@@ -906,7 +906,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 <div id="show" hidden>
   <div class="show-top"><span id="showProg"></span><span class="spacer"></span>
     <button class="ghost" id="showPrev">◀ 이전</button><button class="primary" id="showNext">다음 ▶</button>
-    <button class="ghost" id="showAuto">자동 진행</button><button class="ghost" id="showMc" title="발표 단계마다 시아 멘트 + 카드마다 이름 호명">🎤 MC 음성 켜짐</button><button class="ghost" id="showAll">전부 공개 ⏩</button><button class="ghost" id="showClose">닫기 ✕</button></div>
+    <button class="ghost" id="showAuto">자동 진행</button><button class="ghost" id="showAll">전부 공개 ⏩</button><button class="ghost" id="showClose">닫기 ✕</button></div>
   <div class="show-stage" id="showStage"></div>
   <div class="show-strip" id="showStrip"></div>
 </div>
@@ -1751,7 +1751,9 @@ function toast(msg, ms){
 }
 
 /* ================= 이름 호명(AI 음성) — 조편성·후반전 배치 발표 ================= */
-const NAME_CLIPS = {"고동휘":"n01","김선욱":"n02","김영화":"n03","김재용":"n04","김종혁":"n05","김지환":"n06","김태현":"n07","김한얼":"n08","도민구":"n09","문교훈":"n10","문진우":"n11","민동현":"n12","박문철":"n13","박진우":"n14","박철준":"n15","서용":"n16","양승재":"n17","이거야":"n18","이명헌":"n19","임두형":"n20","임세훈":"n21","정창우":"n22","조재현":"n23","조준호":"n24","지승욱":"n25","최현민":"n26","한우석":"n27","홍석민":"n28"};   // 이름 → audio/names/nNN.mp3 (엑셀 명단 28명, Google AI 음성)
+// 11/13 대표 「MC 멘트 기능 모두 제거」 — 이름 호명·단계 멘트·발표 멘트 전부 끔(음성 파일·MC 대본도 삭제). 효과음은 유지
+const MC_ENABLED = false;
+const NAME_CLIPS = {};
 const Announce = { kind: null, run: 0, el: null };
 function annStop(){ Announce.run++; Announce.kind = null; if (Announce.el) { try { Announce.el.pause(); } catch (e) {} } try { speechSynthesis.cancel(); } catch (e) {} $$('.speaking').forEach(x => x.classList.remove('speaking')); }
 function annPlay(src, myRun, rate){
@@ -1774,13 +1776,13 @@ function annSpeak(text, myRun){   // 녹음이 없는 이름(현장 추가 인�
 const annWait = (ms, myRun) => new Promise(r => setTimeout(() => r(myRun === Announce.run), ms));
 async function annName(name, myRun, rate){ const k = NAME_CLIPS[String(name).trim()]; return k ? annPlay(`audio/names/${k}.mp3`, myRun, rate) : annSpeak(name, myRun); }
 function liveCallStart(kind){   // 연출과 함께 부르는 방송 시작 → 토큰(멈춤 버튼·탭 이동·다시 뽑기 시 무효)
-  if (SELFTEST || DEMO) return null;
+  if (!MC_ENABLED || SELFTEST || DEMO) return null;
   if (typeof McVoice !== 'undefined' && McVoice.key) mcStop();
   annStop(); Announce.kind = kind; renderMcBar(currentTab()); return Announce.run;
 }
 function liveCallEnd(vr){ if (vr !== null && vr === Announce.run) { Announce.kind = null; renderMcBar(currentTab()); } }
 async function announceGroups(kind){
-  if (SELFTEST) return false;
+  if (SELFTEST || !MC_ENABLED) return false;
   const groups = kind === 'draw' ? (state.draw && state.draw.groups) : ((currentPlacement() || {}).groups);
   if (!groups || !groups.length) { toast(kind === 'draw' ? '조편성 결과가 없습니다' : '후반전 배치가 없습니다'); return false; }
   if (McVoice && McVoice.key) { mcStop(); }
@@ -1821,6 +1823,7 @@ function currentTab(){ const a = document.querySelector('nav.tabs button.active'
 function mcStop(){ if (McVoice.el) { try { McVoice.el.pause(); } catch (e) {} } McVoice.key = null; }
 function renderMcBar(tab){
   const bar = document.getElementById('mcbar'); if (!bar) return;
+  if (!MC_ENABLED) { bar.hidden = true; bar.innerHTML = ''; return; }
   const list = MC_CLIPS[tab];
   if (!list) { bar.hidden = true; bar.innerHTML = ''; mcStop(); return; }
   bar.hidden = false;
@@ -2962,6 +2965,12 @@ function clearScore(which, id){
   h.scores[id] = { a: null, b: null, at: new Date().toISOString(), hist: hist.slice(-20) };
   save();
 }
+/* 11/13 대표: 6명(6개팀) 조 = 21점, 5명(5개팀) 조 = 25점. 그 밖의 인원 조는 설정의 목표 점수 */
+function groupTarget(which, gno){
+  const h = state.bracket && state.bracket[which]; const grp = h && h.groups && h.groups.find(x => x.no === gno);
+  const n = grp ? (grp.size || (grp.members || []).length) : 0;
+  return n === 6 ? 21 : n === 5 ? 25 : (+state.settings.target || 21);
+}
 function demoScore(rng, T){
   T = T || state.settings.target || 21;
   const r = rng.int(12); let hi = T, lo = rng.int(T - 2);
@@ -2971,7 +2980,7 @@ function demoScore(rng, T){
 function demoFill(which){
   const h = state.bracket[which]; const ev = evalHalf(which); if (!h || !ev || ev.error || h.locked) return 0;
   const rng = DrawCore.makeRng(DrawCore.newSeed()); let n = 0;
-  ev.matches.forEach(m => { if (!B.hasScore(h.scores[m.id])) { const s = demoScore(rng); h.scores[m.id] = { a: s.a, b: s.b, at: new Date().toISOString(), hist: [] }; n++; } });
+  ev.matches.forEach(m => { if (!B.hasScore(h.scores[m.id])) { const s = demoScore(rng, groupTarget(which, m.g)); h.scores[m.id] = { a: s.a, b: s.b, at: new Date().toISOString(), hist: [] }; n++; } });
   save(); return n;
 }
 
@@ -3031,7 +3040,7 @@ function printSheetHtml(which, ev, h, nm, g){
     return `<tr style="height:${rowH}mm"><td class="c k">${m.k}</td><td class="tm">${tm(m.a)}</td><td class="c sc">${has ? `<b>${s.a}</b>` : '<span class="sbox"></span>'}<i>:</i>${has ? `<b>${s.b}</b>` : '<span class="sbox"></span>'}</td><td class="tm">${tm(m.b)}</td><td class="sign"></td></tr>`; }).join('');
   const mem = g.members.map((m, i) => `<span class="pm1"><b>${i + 1}</b><span class="nm">${esc(m.name)}</span></span>`).join('');
   return `<section class="psheet"><div class="phead"><div><div class="pev">우당탕탕 자체대회 · 2026.11.14(토)</div><h1>${HALF_LABEL[which]} ${g.no}조 대진표</h1></div><div class="pcourt">${court}<small>코트</small></div></div>
-    <div class="pmeta">${g.members.length}명 · ${ms.length}경기 · ${state.settings.target}점 단판${which === 'r2' && g.no === 1 ? ' · 🏆 상금 조(1등 20만·2등 10만·3등 5만)' : which === 'r2' ? ' · 1등 3만원' : ''}</div>
+    <div class="pmeta">${g.members.length}명 · ${ms.length}경기 · ${groupTarget(which, g.no)}점 단판${which === 'r2' && g.no === 1 ? ' · 🏆 상금 조(1등 20만·2등 10만·3등 5만)' : which === 'r2' ? ' · 1등 3만원' : ''}</div>
     <div class="pmem">${mem}</div>
     <table class="pm"><colgroup><col style="width:13mm"><col><col style="width:46mm"><col><col style="width:17mm"></colgroup><thead><tr><th>경기</th><th>A팀</th><th>점수</th><th>B팀</th><th>확인</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="pfoot">꼴찌 벌금 5천원 · 점수 입력 playjc.co.kr/#${which === 'r1' ? 'round1' : 'round2'} · 출력 ${new Date().toLocaleString('ko-KR', { hour12: false })}</p></section>`;
@@ -3080,7 +3089,7 @@ function groupBracketHtml(which, ev, h, nm, editable, nexts){
         extra = `<td class="grd">${esc(gr)}</td><td class="pz">${pz ? `${pz.amount / 10000}만원` : ''}</td>`; }
       return `<tr class="${last ? 'last' : ''} ${tied.has(no) ? 'tied' : ''}"><td>${i + 1}</td><td class="nm">${esc(x.name)}${tied.has(no) ? ' <span class="badge tie">동률</span>' : ''}${last ? ' <span class="badge red">꼴찌 5천원</span>' : ''}</td><td>${x.w}</td><td>${x.l}</td><td>${x.diff > 0 ? '+' : ''}${x.diff}</td>${extra}</tr>`; }).join('');
     return `<section class="gbox" style="--gc:${color}">
-      <header><h3>${g.no}조</h3>${which === 'r2' && g.no === 1 ? '<span class="badge prize">🏆 상금 조 20·10·5만원</span>' : ''}<span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · ${done}/${ms.length}경기</span><button type="button" class="ghost pbtn" data-act="print" data-g="${g.no}">🖨 ${g.no}조 출력</button></header>
+      <header><h3>${g.no}조</h3>${which === 'r2' && g.no === 1 ? '<span class="badge prize">🏆 상금 조 20·10·5만원</span>' : ''}<span class="meta">${ms[0] ? ms[0].court : g.no}코트 · ${g.members.length}명 · <b>${groupTarget(which, g.no)}점</b> · ${done}/${ms.length}경기</span><button type="button" class="ghost pbtn" data-act="print" data-g="${g.no}">🖨 ${g.no}조 출력</button></header>
       <div class="gmembers">${g.members.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>
       <div class="gbscroll"><table class="gb"><thead><tr><th>경기</th><th>시각</th><th>A팀</th><th>점수</th><th>B팀</th></tr></thead><tbody>${rows}</tbody></table></div>
       <table class="gr"><thead><tr><th>순위</th><th>이름</th><th>승</th><th>패</th><th>득실</th>${which === 'r2' ? `<th>급수${g.complete ? '' : '(현재)'}</th><th>상품</th>` : ''}</tr></thead><tbody>${rank}</tbody></table>${tiebar}
@@ -3124,7 +3133,7 @@ function callBoardHtml(which, ev){
     const rest = ms.filter(m => !B.hasScore(h.scores[m.id]));
     const cur = rest[0], nx = rest[1];
     if (!cur) return `<div class="call done"><div class="court">${ms[0] ? ms[0].court : g.no}코트</div><div class="meta">${g.no}조 · 경기 종료 ✅</div></div>`;
-    return `<div class="call" style="border-color:${GROUP_COLORS[(g.no - 1) % 5]}"><div class="court">${cur.court}코트</div><div class="meta">${g.no}조 · R${cur.round} · ${cur.time}</div><div class="team">${teamNames(nm, cur.a)}</div><div class="cvs">VS</div><div class="team">${teamNames(nm, cur.b)}</div>${nx ? `<div class="nextm">다음 R${nx.round}(${nx.time}): ${teamNames(nm, nx.a)} vs ${teamNames(nm, nx.b)}</div>` : '<div class="nextm">이 조 마지막 경기</div>'}</div>`;
+    return `<div class="call" style="border-color:${GROUP_COLORS[(g.no - 1) % 5]}"><div class="court">${cur.court}코트</div><div class="meta">${g.no}조 · ${groupTarget(which, g.no)}점 · R${cur.round} · ${cur.time}</div><div class="team">${teamNames(nm, cur.a)}</div><div class="cvs">VS</div><div class="team">${teamNames(nm, cur.b)}</div>${nx ? `<div class="nextm">다음 R${nx.round}(${nx.time}): ${teamNames(nm, nx.a)} vs ${teamNames(nm, nx.b)}</div>` : '<div class="nextm">이 조 마지막 경기</div>'}</div>`;
   }).join('') + '</div>';
 }
 function renderHalf(which){
@@ -3223,7 +3232,7 @@ function openPad(which, id){
   Object.assign(Pad, { which, id, a: B.hasScore(s) ? String(s.a) : '', b: B.hasScore(s) ? String(s.b) : '', side: 'a', warned: false, m });
   $('#padHead').textContent = `${HALF_LABEL[which]} · ${m.g}조 ${m.k}경기 · ${m.court}코트 · R${m.round} ${m.time}`;
   $('#padNameA').innerHTML = teamNames(nm, m.a); $('#padNameB').innerHTML = teamNames(nm, m.b);
-  $('#padT').textContent = String(state.settings.target);
+  $('#padT').textContent = String(groupTarget(which, m.g));
   const hist = (s && s.hist) || [];
   $('#padHist').innerHTML = hist.length ? hist.map(x => `<li>${x.a}:${x.b} · ${fmtTime(x.at)}</li>`).join('') + (B.hasScore(s) ? `<li><b>현재 ${s.a}:${s.b}</b> · ${fmtTime(s.at)}</li>` : '') : '<li>수정 이력 없음</li>';
   $('#padHistWrap').style.display = hist.length ? '' : 'none';
@@ -3240,7 +3249,7 @@ function padRender(){
 function padKey(k){
   const cur = Pad[Pad.side];
   if (k === 'back') { Pad[Pad.side] = cur.slice(0, -1); }
-  else if (k === 'T') { Pad[Pad.side] = String(state.settings.target); if (Pad.side === 'a') Pad.side = 'b'; }
+  else if (k === 'T') { Pad[Pad.side] = String(groupTarget(Pad.which, Pad.m && Pad.m.g)); if (Pad.side === 'a') Pad.side = 'b'; }
   else if (/^\d$/.test(k)) {
     Pad[Pad.side] = (cur.length >= 2 ? '' : cur) + k;
     if (Pad[Pad.side] === '0' + k && k !== '0') Pad[Pad.side] = k;
@@ -3251,7 +3260,7 @@ function padKey(k){
 function closePad(){ $('#pad').hidden = true; Pad.which = null; }
 function padSave(){
   const a = Pad.a === '' ? '' : +Pad.a, b = Pad.b === '' ? '' : +Pad.b;
-  const v = B.validateScore(a, b, state.settings.target);
+  const v = B.validateScore(a, b, groupTarget(Pad.which, Pad.m && Pad.m.g));
   const w = $('#padWarn');
   if (v.errors.length) { w.hidden = false; w.classList.add('red'); w.innerHTML = v.errors.map(esc).join('<br>'); Sound.boom(); return false; }
   if (v.warnings.length && !Pad.warned) { Pad.warned = true; w.hidden = false; w.classList.remove('red'); w.innerHTML = '⚠ ' + v.warnings.map(esc).join('<br>⚠ ') + '<br><b>한 번 더 누르면 저장합니다.</b>'; $('#padSave').textContent = '경고 확인 — 그래도 저장'; return false; }
@@ -3479,7 +3488,7 @@ const Show = { steps: [], i: -1, auto: false, timer: 0, stepAt: 0, voiceEnd: 0 }
 /* 발표 모드 MC 음성(11/7): 시작·급수마다 시아 멘트(audio/show), 카드가 뒤집히면 그 사람 실명(audio/names) — 자동 진행은 멘트가 끝난 뒤 다음으로 */
 const SHOW_RATE = 1.15;   // 11/8 대표 「조금만 더 빠르게」: 멘트·호명 1.15배속(음높이 유지)
 const SHOW_TIER_CLIP = { '일반인': 'sh_ilban', '초심': 'sh_chosim', D: 'sh_D', C: 'sh_C', B: 'sh_B', A: 'sh_A', S: 'sh_S', '준자강': 'sh_jun', '자강': 'sh_ja' };
-const ShowVoice = { on: true, speaking: false, run: null };
+const ShowVoice = { on: MC_ENABLED, speaking: false, run: null };
 function renderShowMc(){ const b = $('#showMc'); if (!b) return; b.textContent = !ShowVoice.on ? '🔇 MC 음성 꺼짐' : ShowVoice.speaking ? '🎤 MC 말하는 중' : '🎤 MC 음성 켜짐'; b.classList.toggle('on', ShowVoice.on && ShowVoice.speaking); }
 function showVoiceStop(){ if (ShowVoice.run !== null && ShowVoice.run === Announce.run) annStop(); ShowVoice.run = null; ShowVoice.speaking = false; renderShowMc(); }
 async function showSpeak(parts){   // parts: [{clip}] 또는 [{name}]
@@ -3602,7 +3611,7 @@ $('#showAuto').addEventListener('click', () => {
     if (Show.i >= Show.steps.length - 1) showAutoStop(); else showGo(Show.i + 1);
   }, 150);
 });
-$('#showMc').addEventListener('click', () => { ShowVoice.on = !ShowVoice.on; if (!ShowVoice.on) showVoiceStop(); renderShowMc(); });
+{ const smc = $('#showMc'); if (smc) smc.addEventListener('click', () => { ShowVoice.on = !ShowVoice.on; if (!ShowVoice.on) showVoiceStop(); renderShowMc(); }); }
 $('#showStage').addEventListener('click', showNext);
 
 /* 결과 PNG — 이름·순위·급수·상품만(벌금·출석·나이 없음) */
