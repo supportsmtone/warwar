@@ -44,7 +44,7 @@ process.on('exit', cleanup);
   await ev(`document.querySelector('nav.tabs button[data-tab="p-award"]').click(); true`); await sleep(800);
   await ev(`(()=>{ const b=document.querySelector('.dinnerbox'); if (b) b.scrollIntoView(); return !!b })()`); await sleep(500);
   await shot('award_dinnerbox_1920');
-  await ev(`document.getElementById('showMc').click(); document.getElementById('btnShow').click(); true`); await sleep(600);
+  await ev(`(document.getElementById('showMc')||{click(){}}).click(); document.getElementById('btnShow').click(); true`); await sleep(600);
   const steps = await ev(`(()=>{ const out=[]; let i=0; return out })()`);
   // 다음 ▶ 를 눌러 일반인 소개 → 일반인 카드 → … → 자강 → 시상 → 회식
   const next = async ms => { await ev(`document.getElementById('showNext').click(); true`); await sleep(ms); };

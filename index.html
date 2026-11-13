@@ -630,6 +630,35 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* ===== 11/13 대표 「발표 모드 배경이 일장기 같다 → 더 개구지고 아기자기하게」: 방사형 줄무늬 제거, 사탕색 배경·물방울무늬·둥둥 스티커·단계별 무늬 ===== */
+body #show,body[data-theme] #show{background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Ccircle cx='14' cy='14' r='5' fill='%23ffffff' fill-opacity='.13'/%3E%3Ccircle cx='42' cy='42' r='5' fill='%23ffffff' fill-opacity='.09'/%3E%3C/svg%3E"),linear-gradient(155deg,#5b3cc4 0%,#a63fb3 38%,#e8558f 68%,#ff9a5a 100%);background-size:56px 56px,100% 100%;animation:dotDrift 18s linear infinite}
+@keyframes dotDrift{to{background-position:56px 56px,0 0}}
+#show .show-top{position:relative;z-index:3;background:rgba(40,12,70,.38);backdrop-filter:blur(4px)}
+#show .show-top #showProg{color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.45)}
+#show .show-stage{z-index:1}
+#show .show-strip{position:relative;z-index:3}
+#show .show-strip > span{background:rgba(40,12,70,.45);border:1.5px solid rgba(255,255,255,.35)}
+#show .tierintro{text-shadow:4px 5px 0 #2a0f4a,0 0 18px rgba(255,255,255,.25)}
+#show .tierintro small{color:#fff59a;text-shadow:2px 3px 0 #2a0f4a}
+#show .prizebox{background:rgba(40,12,70,.62);border-color:#ffe066;border-width:4px;border-style:dashed;border-radius:26px}
+#show .dinner .kick{color:#fff59a;text-shadow:2px 2px 0 #2a0f4a}
+#show .dinner .daddr{text-shadow:1px 2px 0 rgba(42,15,74,.8)}
+.showdeco{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.showdeco span{position:absolute;font-size:clamp(26px,4.2vmin,58px);filter:drop-shadow(3px 4px 0 rgba(42,15,74,.35));animation:bob 4.2s ease-in-out infinite}
+.showdeco span:nth-child(2n){animation-duration:5.3s;animation-delay:-1.4s}
+.showdeco span:nth-child(3n){animation-name:wiggle;animation-duration:3.6s;animation-delay:-.8s}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-14px) rotate(8deg)}}
+@keyframes wiggle{0%,100%{transform:rotate(-14deg) scale(1)}50%{transform:rotate(14deg) scale(1.12)}}
+#show.final .showdeco span{opacity:.55}
+/* 단계 무늬(예전 방사형 줄무늬 자리): 기본 = 색종이 비, 일반인 = 「ㅋㅋㅋ」 놀림 무늬, 자강·준자강 = 반짝이 별 */
+.rays,.rays.red,.rays.gold{left:0;top:0;width:100%;height:100%;margin:0;background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Ccircle cx='22' cy='30' r='7' fill='%23ffe066'/%3E%3Ccircle cx='150' cy='44' r='5' fill='%237cf3c5'/%3E%3Ccircle cx='200' cy='150' r='8' fill='%23ff8fd1'/%3E%3Ccircle cx='70' cy='190' r='6' fill='%238ec5ff'/%3E%3Ccircle cx='120' cy='118' r='4' fill='%23ffffff'/%3E%3Crect x='90' y='20' width='16' height='7' rx='3' fill='%23ff8fd1' transform='rotate(28 98 24)'/%3E%3Crect x='30' y='110' width='16' height='7' rx='3' fill='%23ffe066' transform='rotate(-35 38 114)'/%3E%3Crect x='170' y='90' width='16' height='7' rx='3' fill='%238ec5ff' transform='rotate(60 178 94)'/%3E%3Crect x='140' y='200' width='16' height='7' rx='3' fill='%237cf3c5' transform='rotate(-15 148 204)'/%3E%3Cpath d='M200 20 q8 8 0 16 q-8 8 0 16' stroke='%23ffffff' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M40 220 q8 -8 16 0 q8 8 16 0' stroke='%23ffe066' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-size:240px 240px;animation:confettiFall 7s linear infinite,rayIn .5s ease-out both}
+.rays.red{background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='170'%3E%3Cg font-family='Apple SD Gothic Neo,Noto Sans KR,sans-serif' font-weight='900'%3E%3Ctext x='12' y='58' font-size='40' fill='%23ffffff' fill-opacity='.30' transform='rotate(-12 70 45)'%3E%E3%85%8B%E3%85%8B%E3%85%8B%3C/text%3E%3Ctext x='140' y='140' font-size='30' fill='%23ffe066' fill-opacity='.40' transform='rotate(10 190 130)'%3E%E3%85%8B%E3%85%8B%3C/text%3E%3Ctext x='150' y='48' font-size='26'%3E%F0%9F%98%9C%3C/text%3E%3Ctext x='34' y='150' font-size='24'%3E%F0%9F%92%A6%3C/text%3E%3C/g%3E%3C/svg%3E");background-size:260px 170px;animation:kkWobble 2.4s ease-in-out infinite,confettiFall 9s linear infinite,rayIn .5s ease-out both}
+.rays.gold{background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg fill='%23ffe066'%3E%3Cpath d='M40 18l6 14 15 1-11 10 4 15-14-8-13 8 4-15-11-10 15-1z'/%3E%3Cpath d='M160 120l4 10 11 1-8 7 3 11-10-6-10 6 3-11-8-7 11-1z' fill-opacity='.85'/%3E%3Cpath d='M175 30l3 7 7 1-5 4 2 7-7-4-6 4 2-7-5-4 7-1z' fill='%23ffffff'/%3E%3Cpath d='M60 160l3 7 7 1-5 4 2 7-7-4-6 4 2-7-5-4 7-1z' fill='%23fff3b0'/%3E%3C/g%3E%3Ccircle cx='120' cy='60' r='4' fill='%23ffffff'/%3E%3Ccircle cx='20' cy='110' r='3' fill='%23ffffff'/%3E%3Ccircle cx='200' cy='200' r='3' fill='%23ffe066'/%3E%3C/svg%3E"),radial-gradient(circle at 50% 50%,rgba(255,224,102,.35),rgba(255,224,102,0) 55%);background-size:220px 220px,100% 100%;animation:twinkle 1.6s ease-in-out infinite,confettiFall 12s linear infinite,rayIn .5s ease-out both}
+@keyframes confettiFall{from{background-position:0 0}to{background-position:0 240px}}
+@keyframes kkWobble{0%,100%{transform:rotate(-1.5deg) scale(1.02)}50%{transform:rotate(1.5deg) scale(1.05)}}
+@keyframes twinkle{0%,100%{opacity:.75}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){body #show,body[data-theme] #show,.showdeco span{animation:none!important}}
 </style>
 </head>
 <body data-theme="A">
@@ -904,6 +933,7 @@ body[data-theme="C"] #show{background:radial-gradient(1200px 700px at 50% 30%,#3
 </div>
 <!-- 발표 모드 -->
 <div id="show" hidden>
+  <div class="showdeco" aria-hidden="true"><span style="left:3%;top:14%">🏸</span><span style="left:12%;top:72%">⭐</span><span style="left:5%;top:44%">🍭</span><span style="left:22%;top:12%">💖</span><span style="left:30%;top:84%">✨</span><span style="right:4%;top:16%">🎈</span><span style="right:9%;top:68%">🍬</span><span style="right:3%;top:42%">🌈</span><span style="right:24%;top:10%">🐥</span><span style="right:28%;top:82%">🎉</span><span style="left:46%;top:6%">🏸</span><span style="left:52%;top:90%">💫</span></div>
   <div class="show-top"><span id="showProg"></span><span class="spacer"></span>
     <button class="ghost" id="showPrev">◀ 이전</button><button class="primary" id="showNext">다음 ▶</button>
     <button class="ghost" id="showAuto">자동 진행</button><button class="ghost" id="showAll">전부 공개 ⏩</button><button class="ghost" id="showClose">닫기 ✕</button></div>
