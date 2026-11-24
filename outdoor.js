@@ -263,6 +263,28 @@ export function buildOutdoor(ctx) {
   }
   // 전면 주차(앞머리가 차로 쪽). 나갈 때는 앞으로 나와 오른쪽으로 돌고, 들어올 때는 자리를 지나쳐 멈춘 뒤 후진으로 넣는다.
   const head = a => ({ x: Math.sin(a), z: -Math.cos(a) });   // 호 각도 a 에서 차 앞머리 방향(a=π: 차로 쪽, a=π/2: 오른쪽)
+  // ---------- 교통 정리: 차는 절대 겹치지 않는다 ----------
+  // 차로(가로 한 줄)는 모두 +x 로만 달린다. 자리에서 빼거나 넣는 동안에는 자기 자리 앞 구간을 「예약」하고,
+  // 예약이 안 되면 자리(나갈 때) 또는 차로 뒤쪽(들어올 때)에서 기다린다. 차로에서는 앞차와 남의 예약 구간 앞에서 멈춘다.
+  const GAP = 6.4, traffic = {
+    res: new Map(),                                                        // 차 → [x 시작, x 끝] (빼기·넣기에 쓰는 구간)
+    zone(c) { return [c.bx - 1.7, c.bx + LOT.R + 3.6]; },
+    hit(a, b) { return a[0] < b[1] && b[0] < a[1]; },
+    travelling(c) { return (c.state === 'leaving' && c.phase === 3) || (c.state === 'arriving' && c.phase === 0); },   // 차로를 달리는 중
+    tryReserve(c, departing) {
+      if (this.res.has(c)) return true; const z = this.zone(c);
+      for (const [o, r] of this.res) if (o !== c && this.hit(z, r)) return false;                 // 옆 차가 빼거나 넣는 중
+      for (const o of cars) { if (o === c || !this.travelling(o)) continue;
+        if (departing ? (o.x > z[0] - 15 && o.x < z[1] + 1) : (o.x > c.x && o.x < z[1] + 1)) return false; }   // 차로에 다가오는(지나가는) 차가 있다
+      this.res.set(c, z); return true; },
+    release(c) { this.res.delete(c); },
+    limit(c) {                                                             // 차로를 달리는 차가 나아가도 되는 한계 x
+      let lim = Infinity;
+      for (const o of cars) if (o !== c && this.travelling(o) && o.x > c.x) lim = Math.min(lim, o.x - GAP);
+      for (const [o, r] of this.res) if (o !== c && r[0] > c.x) lim = Math.min(lim, r[0] - 3.6);
+      if (c.state === 'arriving' && !this.res.has(c)) lim = Math.min(lim, this.zone(c)[0] - 0.6);
+      return lim; },
+  };
   class Car {
     constructor(spec, bx, plate, label, owner) {
       Object.assign(this, makeCar(spec, plate)); this.spec = spec; this.bx = bx; this.owner = owner || null; this.name = label; this.state = 'parked'; this.phase = 0; this.t = 0; this.v = 0; this.user = null; this.cb = null; this.wantArrive = false; this.lights = 0; this.a = Math.PI; this.blinkT = 0; this.moving = false;
@@ -274,23 +296,32 @@ export function buildOutdoor(ctx) {
       this.x = x; this.z = z; this.g.position.set(x, 0, z); this.g.rotation.y = Math.atan2(-h.z, h.x); }
     unlock() { if (this.blinkT <= 0 && this.state === 'parked') this.blinkT = 1.25; }   // 주인이 다가오면 깜빡이 두 번
     depart() { if (this.state === 'parked') { this.wantDepart = false; this.state = 'leaving'; this.phase = 0; this.t = 0; this.v = 0; this.a = Math.PI; } else if (this.state === 'arriving') this.wantDepart = true; }   // 주차 중이면 다 대고 바로 다시 나간다
-    arrive(cb) { this.cb = cb; this.wantDepart = false; if (this.state === 'gone') this.startArrive(); else if (this.state === 'leaving') this.wantArrive = true; else if (this.state === 'parked') { const f = this.cb; this.cb = null; f && f(); } }
-    startArrive() { this.state = 'arriving'; this.phase = 0; this.t = 0; this.wantArrive = false; this.g.visible = true; this.x = -104; this.z = LOT.LANE_Z; this.pose(-104, LOT.LANE_Z, head(Math.PI / 2)); this.v = 13; this.a = Math.PI / 2; }
-    snapGone() { this.state = 'gone'; this.g.visible = false; }
+    arrive(cb) { this.cb = cb; this.wantDepart = false; if (this.state === 'gone') this.startArrive();
+      else if (this.state === 'leaving' && this.phase === 0) { this.state = 'parked'; traffic.release(this); const f = this.cb; this.cb = null; f && f(); }   // 아직 자리에서 기다리던 중이면 그대로 취소
+      else if (this.state === 'leaving') this.wantArrive = true; else if (this.state === 'parked') { const f = this.cb; this.cb = null; f && f(); } }
+    startArrive() { this.state = 'arriving'; this.phase = 0; this.t = 0; this.wantArrive = false; this.g.visible = true;
+      let sx = -104; for (const o of cars) if (o !== this && o.state === 'arriving' && o.phase === 0) sx = Math.min(sx, o.x - GAP);   // 먼저 들어오는 차 뒤에 줄을 선다
+      this.x = sx; this.z = LOT.LANE_Z; this.pose(sx, LOT.LANE_Z, head(Math.PI / 2)); this.v = 13; this.a = Math.PI / 2; }
+    snapGone() { this.state = 'gone'; this.g.visible = false; traffic.release(this); }
     view() { const y = LOT.GY; return { tgt: new THREE.Vector3(this.x, y + 0.72, this.z), pos: new THREE.Vector3(this.x + 3.5, y + 1.75, this.z + 6.4) }; }
     update(dt) {
       const R = LOT.R, cx = this.bx + R; let reversing = false, braking = false; this.moving = this.state === 'leaving' || this.state === 'arriving';
       if (this.state === 'leaving') {
-        if (this.phase === 0) { this.t += dt; if (this.t > 0.9) this.phase = 1; }
+        if (this.phase === 0) { this.t += dt; if (this.t > 0.9 && traffic.tryReserve(this, true)) this.phase = 1; }   // 앞이 비고 차로가 한산해질 때까지 자리에서 기다린다
         else if (this.phase === 1) { this.v = Math.min(2.8, this.v + dt * 2.6); const z = Math.min(LOT.ARC_Z, this.z + this.v * dt); this.pose(this.bx, z, head(Math.PI)); if (z >= LOT.ARC_Z) this.phase = 2; }
         else if (this.phase === 2) { this.v = Math.min(4.2, this.v + dt * 2); this.a = Math.max(Math.PI / 2, this.a - (this.v / R) * dt); this.pose(cx + R * Math.cos(this.a), LOT.ARC_Z + R * Math.sin(this.a), head(this.a)); if (this.a <= Math.PI / 2) this.phase = 3; }
-        else { this.v = Math.min(16, this.v + dt * 5.5); this.pose(this.x + this.v * dt, LOT.LANE_Z, head(Math.PI / 2)); if (this.x > 104) { this.state = 'gone'; this.g.visible = false; if (this.wantArrive) this.startArrive(); } }
+        else { const lim = traffic.limit(this); this.v = Math.max(0, Math.min(16, this.v + dt * 5.5, (lim - this.x) * 1.6)); braking = lim - this.x < 8;
+          this.pose(Math.max(this.x, Math.min(lim, this.x + this.v * dt)), LOT.LANE_Z, head(Math.PI / 2));
+          if (traffic.res.has(this) && this.x > traffic.zone(this)[1]) traffic.release(this);
+          if (this.x > 104) { this.state = 'gone'; this.g.visible = false; traffic.release(this); if (this.wantArrive) this.startArrive(); } }
       } else if (this.state === 'arriving') {
-        if (this.phase === 0) { const left = cx - this.x; this.v = Math.max(1.2, Math.min(13, 1.2 + left * 0.85)); braking = left < 14; const x = Math.min(cx, this.x + this.v * dt); this.pose(x, LOT.LANE_Z, head(Math.PI / 2)); if (x >= cx) { this.phase = 1; this.t = 0; this.a = Math.PI / 2; } }
+        if (this.phase === 0) { if (this.x > traffic.zone(this)[0] - 16) traffic.tryReserve(this, false);
+          const lim = Math.min(cx, traffic.limit(this)), left = lim - this.x; this.v = Math.max(0, Math.min(13, (lim >= cx ? 1.2 : 0) + left * 0.85)); braking = left < 14;
+          const x = Math.max(this.x, Math.min(lim, this.x + this.v * dt)); this.pose(x, LOT.LANE_Z, head(Math.PI / 2)); if (x >= cx && traffic.res.has(this)) { this.phase = 1; this.t = 0; this.a = Math.PI / 2; } }
         else if (this.phase === 1) { braking = true; reversing = true; this.t += dt; if (this.t > 0.6) { this.phase = 2; this.v = 0; } }
         else if (this.phase === 2) { reversing = true; this.v = Math.min(2.3, this.v + dt * 2); this.a = Math.min(Math.PI, this.a + (this.v / R) * dt); this.pose(cx + R * Math.cos(this.a), LOT.ARC_Z + R * Math.sin(this.a), head(this.a)); if (this.a >= Math.PI) this.phase = 3; }
         else if (this.phase === 3) { reversing = true; const left = this.z - LOT.BAY_Z; this.v = Math.max(0.6, Math.min(2.3, left * 1.5)); braking = left < 1.2; const z = Math.max(LOT.BAY_Z, this.z - this.v * dt); this.pose(this.bx, z, head(Math.PI)); if (z <= LOT.BAY_Z) { this.phase = 4; this.t = 0; } }
-        else { braking = true; this.t += dt; if (this.t > 0.7) { this.state = 'parked'; const f = this.cb; this.cb = null; f && f(); if (this.wantDepart) this.depart(); } }
+        else { braking = true; this.t += dt; if (this.t > 0.7) { this.state = 'parked'; traffic.release(this); const f = this.cb; this.cb = null; f && f(); if (this.wantDepart) this.depart(); } }
       }
       this.blinkT = Math.max(0, this.blinkT - dt); const blink = this.blinkT > 0 && Math.floor(this.blinkT / 0.3) % 2 === 0;
       this.lights += ((this.moving ? 1 : 0) - this.lights) * Math.min(1, dt * 4);
