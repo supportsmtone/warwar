@@ -185,6 +185,7 @@
       if (away.length) html += `<h4>자리 비움 · ${away.length}명</h4><ul class="staff">${away.map(s => staffRow(s)).join('')}</ul>`;
       if (f.roof) html += `<h4>회사별 근무</h4><ul class="floors">${Object.entries(HQ.cfg.companies).map(([k, co]) => { const cn = counts(x => x.company === k), fl = HQ.cfg.floors.find(x => x.company === k); return `<li data-floor="${fl.n}" style="--c:${co.color}"><b>${cn.busy}/${cn.total}</b><span>${esc(co.name)}</span></li>`; }).join('')}</ul>`;
       if (f.company === 'studio') html += studioWork();
+      if (f.company === 'sofring') html += sofringWork();
       el.innerHTML = html;
       $('#back').onclick = () => HQ.focusFloor(null);
     }
@@ -194,6 +195,12 @@
     el.querySelectorAll('.rep').forEach(li => li.onclick = () => openReport(li.dataset.p));
   }
   let reports = [];
+  // 2026-11-25: 소프링 층 — 대표 지시 진행 현황과 공지(리포트는 소프링 저장소 문서/ 에 있어 여기서는 열지 않는다)
+  function sofringWork() {
+    const so = (HQ.data && HQ.data.companies.sofring) || {}; const ds = (so.directives || []).slice().reverse(), ns = so.notices || [];
+    return `<h4>대표 지시 · 진행 현황</h4><ul class="plain">${ds.map(d => `<li><span class="t">${esc(d.id)}</span><span class="status ${esc(d.status)}">${esc(d.status)}</span> ${esc(d.text)}${d.result ? `<div class="res">→ ${esc(d.result)}</div>` : ''}</li>`).join('') || '<li class="empty">접수된 지시 없음</li>'}</ul>
+      <h4>공지</h4><ul class="plain">${ns.map(x => `<li><span class="t">${hhmm(x.at)}</span>${esc(x.text)}</li>`).join('') || '<li class="empty">공지 없음</li>'}</ul>`;
+  }
   function studioWork() {
     const sh = (HQ.data && HQ.data.companies.studio) || {}; const ds = (sh.directives || []).slice().reverse(), ns = sh.notices || [];
     return `<h4>대표 지시</h4><ul class="plain">${ds.map(d => `<li><span class="t">${esc(d.id)}</span><span class="status ${esc(d.status)}">${esc(d.status)}</span> ${esc(d.text)}${d.result ? `<div class="res">→ ${esc(d.result)}</div>` : ''}</li>`).join('') || '<li class="empty">접수된 지시 없음</li>'}</ul>
@@ -246,10 +253,20 @@
   // ---------- 데이터 ----------
   async function poll() {
     try {
-      const d = await (await fetch('/api/tower', { cache: 'no-store' })).json();
+      const d = await readTower();
       HQ.data = d; computeOutings(); computeGym(); render(); HQ.emit('data', d);
       $('#conn').textContent = HQ.cfg.readonly ? '현황 기준 ' + new Date(d.time).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '갱신 ' + new Date().toLocaleTimeString('ko-KR', { hour12: false }); $('#conn').className = 'ok';
     } catch (e) { $('#conn').textContent = '서버 연결 끊김'; $('#conn').className = 'bad'; }
+  }
+  // 2026-11-25: 공개 화면(playjc.co.kr)은 3분마다 갱신되는 현황(cfg.statusUrl)을 먼저 읽는다 — 정적 사본만 읽으면 올린 순간에 멈춰 있었다.
+  async function readTower() {
+    if (HQ.cfg.readonly && HQ.cfg.statusUrl) {
+      try {
+        const r = await fetch(HQ.cfg.statusUrl + '?t=' + Math.floor(Date.now() / 60000), { cache: 'no-store' });
+        if (r.ok) { const d = await r.json(); if (d && d.companies) return d; }
+      } catch { /* 아래 사본으로 */ }
+    }
+    return (await fetch('/api/tower', { cache: 'no-store' })).json();
   }
   async function pollReports() { try { reports = await (await fetch('/api/reports', { cache: 'no-store' })).json(); const fl = HQ.cfg && HQ.cfg.floors.find(f => f.n === HQ.mode.floor); if (fl && fl.company === 'studio') renderPanel(); } catch { /* 무시 */ } }
   function tick() { $('#clock').textContent = new Date().toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }); }
