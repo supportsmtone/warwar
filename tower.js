@@ -656,27 +656,8 @@ function applyOne(s) {
   delete HQ.actualVeh[s.id];
   if (!p.inited) p.snap(a); else if (a.key !== p.destKey || a.floor !== (p.dest ? p.dest.floor : p.floor)) p.go(a);
 }
-// ---------- 임원 위치 표지: 건물 전체 보기에서도 대표·본부장이 어디 있는지 바로 보인다 ----------
-const execTags = {};
-for (const s of HQ.staff.filter(x => x.human)) { const cv = document.createElement('canvas'); cv.width = 640; cv.height = 128; const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, transparent: true, depthTest: false, toneMapped: false })); sp.renderOrder = 60; sp.userData.dynamic = true; scene.add(sp); execTags[s.id] = { sp, cv, tx, key: '' }; }
-function updateExecTags() {
-  const hm = t => { const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
-  for (const s of HQ.staff.filter(x => x.human)) { const tag = execTags[s.id], st = HQ.stat(s.id), out = st.place === 'out' || st.place === 'heli', roofTop = FLOORS[s.floor] && FLOORS[s.floor].roof;
-    const text = `${s.name} ${s.title || ''} · ` + (out ? `외근 중${st.until ? ' · ' + hm(st.until) + ' 복귀' : ''}` : '재석'), key = text + out;
-    if (tag.key !== key) { tag.key = key; const g = tag.cv.getContext('2d'), w = tag.cv.width, h = tag.cv.height; g.clearRect(0, 0, w, h); g.font = `800 44px ${FONT}`; const tw = Math.min(w - 40, g.measureText(text).width + 56), x0 = (w - tw) / 2;
-      g.fillStyle = out ? 'rgba(60,20,24,.92)' : 'rgba(15,12,34,.92)'; g.beginPath(); g.roundRect(x0, 22, tw, 84, 42); g.fill(); g.lineWidth = 4; g.strokeStyle = out ? '#ff8a7a' : '#ffd23f'; g.stroke();
-      g.fillStyle = out ? '#ffd0c8' : '#ffe9a6'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, 66, tw - 30); tag.tx.needsUpdate = true; }
-    // 재석이면 자기 자리 위, 외근 중이면 자기 주차 자리 위에 띄운다
-    const car = outdoor.exec[s.id];
-    if (out && car) { tag.sp.position.set(car.bx, LOT.GY + 3.6, LOT.BAY_Z); tag.sp.scale.set(9, 1.8, 1); }
-    else if (roofTop) { tag.sp.position.set(PAV.cx, floorY(s.floor) + PAV.h + 0.4, PAV.cz + PAV.d / 2); tag.sp.scale.set(12, 2.4, 1); }
-    else { tag.sp.position.set(-8.5, floorY(s.floor) + 3.3, 7.4); tag.sp.scale.set(9, 1.8, 1); }
-    tag.sp.visible = mode.floor == null || (out && mode.floor === LOTN); }
-}
 function applyData() {
   for (const s of HQ.staff) applyOne(s);
-  updateExecTags();
   // 층 밝기: 일하는 사람이 많을수록 천장 조명이 밝다
   for (const n of NS) { const here = HQ.staff.filter(s => s.floor === n && !s.human), r = here.length ? here.filter(s => HQ.stat(s.id).busy).length / here.length : (n === 1 ? Math.min(1, HQ.gymOrder.length / 6) : 0);
     F[n].busy = r; for (const m of F[n].ceilMats) m.color.setHex(0xfff0d8).multiplyScalar(0.75 + 0.75 * r); }
@@ -803,7 +784,7 @@ function setMode(n, instant) {
   for (const m of NS) { const f = F[m]; f.liftT = inside && m > n ? 46 : 0; f.shell.visible = n !== m; f.ceil.visible = n !== m; }
   roofS.liftT = inside ? 46 : 0; totem.visible = n == null || n === LOTN; pavRoof.visible = n !== RN; outdoor.setLabels(n === LOTN); outdoor.cafeRoof.visible = n !== 1 && n !== CAFN; shadowDirty = 60;
   controls.maxPolarAngle = n == null ? 1.53 : n === LOTN ? 1.5 : 1.36; controls.minDistance = n == null ? 7 : 2.4; controls.maxDistance = n == null ? 240 : 160;
-  hoverFloor = null; drawTotem(); updateExecTags(); renderer.domElement.style.cursor = '';
+  hoverFloor = null; drawTotem(); renderer.domElement.style.cursor = '';
   if (n === CAFN) { focusLight.position.set(20, 8.5, 5); focusLight.intensity = 9; } else if (n === RN && RN) { focusLight.position.set(-2, floorY(n) + 8, 6); focusLight.intensity = 10; } else if (inside) { focusLight.position.set(-1, floorY(n) + 9, 6); focusLight.intensity = 14; } else focusLight.intensity = 0;
   goCam(camFor(n), instant ? 0 : 1100);
 }
