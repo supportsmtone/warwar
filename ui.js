@@ -4,7 +4,15 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const listeners = {};
+  const S = window.HQState;   // 상태 판정 공용(hqstate.js) — 멈춤 의심·막힘·신선도
+  // 2026-11-26: 좁은 화면(720px 미만)이나 「동작 줄이기」 설정이면 3D 대신 요약 목록으로 시작한다. 이 탭에서 고른 보기는 기억한다.
+  const LITE = (() => { let pick = null; try { pick = sessionStorage.getItem('hq.view'); } catch { /* 저장 불가 환경 */ }
+    if (pick === '3d') return false; if (pick === 'list') return true;
+    return window.innerWidth < 720 || !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); })();
+  if (LITE) document.body.classList.add('lite');
+  function setView(v) { try { sessionStorage.setItem('hq.view', v); } catch { /* 무시 */ } location.reload(); }
   const HQ = window.HQ = {
+    lite: LITE, attn: 0,
     cfg: null, data: null, staff: [], byId: {}, mode: { floor: null }, sel: null, gymOrder: [], gymSlots: {}, actualVeh: {}, cafeNow: {}, drinks: {}, outs: {}, hide: {},
     on(ev, fn) { (listeners[ev] = listeners[ev] || []).push(fn); },
     emit(ev, arg) { (listeners[ev] || []).forEach(fn => { try { fn(arg); } catch (e) { console.error(e); } }); },
@@ -24,7 +32,7 @@
   };
   let resolveReady; HQ.ready = new Promise(r => { resolveReady = r; });
 
-  const STATE_KO = { working: '근무 중', directing: '지휘 중', lounge: '휴게 중', gym: '운동 중', present: '재석', out: '외근 중', heli: '긴급 외근' };
+  const STATE_KO = { working: '근무 중', directing: '지휘 중', waiting: '대기', blocked: '막힘', 'stale-work': '멈춤 의심', lounge: '휴게 중', gym: '운동 중', present: '재석', out: '외근 중', heli: '긴급 외근' };
   const HQ_CO = { name: '', color: '#FFD23F', color2: '#FFE9A6' };   // 대표(특정 회사 소속 아님)
   const flabel = f => f.label || f.n + 'F';
   const fkey = f => f.lot ? -1 : f.cafe ? 0.5 : f.n;   // 레일 순서: 옥상 → 5~1층 → 카페 → 주차장
@@ -43,18 +51,32 @@
     const c = HQ.data.companies[s.company];
     return (c && c.roles && c.roles[s.role]) || { state: 'idle', note: '', since: null };
   }
+  function judgeOf(id) { const s = HQ.byId[id]; if (!s || s.human || !HQ.data) return null; return S.judge(raw(id), HQ.data.companies[s.company], HQ.cfg, Date.now()); }
+  const lookList = () => HQ.staff.filter(s => !s.human && S.needsLook((judgeOf(s.id) || {}).kind));   // 확인 필요(막힘·멈춤 의심)
+  const elapsed = st => st.flag === 'stale-work' ? `⚠ ${st.quiet == null ? '시각 없음' : S.dur(st.quiet) + '째'}` : (st.since ? ago(st.since) : '');
+  function metricsLine(k, withName) {   // 회사 결과 지표 한 줄(없으면 빈 문자열 — 자리도 차지하지 않는다)
+    const ms = S.metricsOf(HQ.data && HQ.data.companies[k]); if (!ms.length) return '';
+    return `<div class="metrics" style="--c:${companyOf(k).color}">${withName ? `<span class="mco">${esc(companyOf(k).name)}</span>` : ''}${ms.map(m => `<span class="m" title="${esc(m.hint || '')}"><i>${esc(m.label)}</i><b>${esc(m.value)}</b>${m.hint ? `<em>${esc(m.hint)}</em>` : ''}</span>`).join('')}</div>`;
+  }
+  function freshOf(k) { const c = HQ.data && HQ.data.companies[k]; return S.freshness(c && c.fetchedAt, HQ.cfg, Date.now()); }
   // 한 사람의 현재 상태·위치(책상/휴게실/1층 운동). 3D 와 패널이 이 한 곳의 판정을 같이 쓴다.
   function statOf(id) {
     const s = HQ.byId[id]; if (!s) return null;
     const a = raw(id), o = HQ.outs[id];
-    const busy = !s.human && (a.state === 'working' || a.state === 'directing');
+    // 2026-11-26: 역할 단위 판정(hqstate.js) — 오래 멈춘 근무(stale-work)와 원천 실패(blocked)는 근무 수에 넣지 않는다.
+    const j = s.human ? null : judgeOf(id), kind = j ? j.kind : 'idle', flag = S.needsLook(kind) ? kind : null;
+    const busy = !s.human && S.isBusy(kind);
     // 외근(차량·헬기)이 가장 먼저다. 그다음 근무, 운동, 휴게. 사람(대표·본부장)은 근무 기록 원천이 없어 자리에 있으면 「재석」.
     // 실제 탈것(화면이 태운 것)이 있으면 그것으로 표시한다. 근무 수(busy)는 외근 중에도 실제 기록 그대로 센다.
-    if (o) { const kind = (HQ.actualVeh && HQ.actualVeh[id]) || o.kind; return { state: kind === 'heli' ? 'heli' : 'out', busy, place: kind === 'heli' ? 'heli' : 'out', note: kind === 'heli' ? '긴급 외근 · 헬기' : o.why === '긴급 외근 · 헬기' ? '긴급 외근 · 차량' : o.why, since: o.since, until: o.until, floorNow: LOT, gymIndex: -1, human: !!s.human, cmd: !!o.cmd }; }
+    // 막힘·멈춤 의심인 사람은 연출 외근으로 가리지 않는다(명령 외근만 예외)
+    if (o && !(flag && !o.cmd)) { const veh = (HQ.actualVeh && HQ.actualVeh[id]) || o.kind; return { kind, flag, quiet: j ? j.quietMinutes : null, state: veh === 'heli' ? 'heli' : 'out', busy, place: veh === 'heli' ? 'heli' : 'out', note: veh === 'heli' ? '긴급 외근 · 헬기' : o.why === '긴급 외근 · 헬기' ? '긴급 외근 · 차량' : o.why, since: o.since, until: o.until, floorNow: LOT, gymIndex: -1, human: !!s.human, cmd: !!o.cmd }; }
     if (s.human) return { state: 'present', busy: false, place: 'desk', note: '', since: null, floorNow: s.floor, gymIndex: -1, human: true };
-    const gym = !busy && HQ.gymSlots[id] != null;
-    const place = busy ? 'desk' : gym ? 'gym' : 'lounge';
-    return { state: busy ? a.state : place, busy, place, note: busy ? (a.note || '') : '', since: a.since, auto: !!a.auto, floorNow: gym ? 1 : s.floor, gymIndex: gym ? HQ.gymSlots[id] : -1 };
+    // 기록이 근무·지휘인 채 멈췄거나 막힌 사람은 자리에 앉아 있되(손은 멈춤) 근무로 세지 않는다. 대기·막힘(기록이 휴식)은 휴게실.
+    const atDesk = busy || (flag && S.isBusy(j.raw)), special = kind === 'waiting' || !!flag;
+    const gym = !atDesk && !special && HQ.gymSlots[id] != null;
+    const place = atDesk ? 'desk' : gym ? 'gym' : 'lounge';
+    const note = flag === 'blocked' ? (j.reason || '') : (busy || special) ? (a.note || '') : '';
+    return { kind, flag, quiet: j ? j.quietMinutes : null, state: busy ? kind : special ? kind : place, busy, place, note, since: a.since, auto: !!a.auto, floorNow: gym ? 1 : s.floor, gymIndex: gym ? HQ.gymSlots[id] : -1 };
   }
   // 외근 판정(한 곳): ① 명령(/api/outing) ② 임원 일정(2시간마다) ③ 쉬는 직원의 수시 외근(업무용 차량 수만큼).
   // 긴급 명령은 헬기 — 1대뿐이라 먼저 명령된 한 사람만 타고 나머지 긴급 명령은 차량으로 나간다.
@@ -72,7 +94,7 @@
     const slotMs = (cfgO.staffSlotMinutes || 10) * 60000, slot = Math.floor(now / slotMs), pct = cfgO.staffPercent == null ? 20 : cfgO.staffPercent;
     const pool = (HQ.cfg.vehicles && HQ.cfg.vehicles.pool && HQ.cfg.vehicles.pool.count) || 10;
     let used = HQ.staff.filter(s => !s.human && outs[s.id] && outs[s.id].kind === 'car').length;
-    const cands = HQ.staff.filter(s => { if (s.human || outs[s.id]) return false; const a = raw(s.id); return a.state === 'idle' && hash(s.id + ':out:' + slot) % 100 < pct; })
+    const cands = HQ.staff.filter(s => { if (s.human || outs[s.id]) return false; const a = raw(s.id); return a.state === 'idle' && !S.needsLook((judgeOf(s.id) || {}).kind) && hash(s.id + ':out:' + slot) % 100 < pct; })
       .sort((a, b) => hash(a.id + slot) - hash(b.id + slot));
     for (const s of cands) { if (used >= pool) break; used++; outs[s.id] = { kind: 'car', why: '외근 · 업무용 차량', since: new Date(slot * slotMs).toISOString(), until: new Date((slot + 1) * slotMs).toISOString() }; }
     HQ.outs = outs;
@@ -101,14 +123,14 @@
   function staffRow(s, opts = {}) {
     const st = statOf(s.id), c = companyOf(s.company), fl = HQ.cfg.floors.find(f => f.n === st.floorNow);
     const where = opts.showFloor && fl ? `<span class="fl" style="--c:${c.color}">${flabel(fl)}</span>` : '';
-    const sub = st.note ? esc(st.note) : (st.state === 'gym' ? '1층에서 운동' : st.state === 'lounge' ? '대기' : st.state === 'present' ? esc(c.name || HQ.cfg.building.name) : '');
+    const sub = st.note ? esc(st.note) : (st.state === 'gym' ? '1층에서 운동' : st.state === 'stale-work' ? '기록은 근무인데 오래 새 기록이 없습니다' : st.state === 'waiting' ? '다른 작업 대기' : st.state === 'lounge' ? '대기' : st.state === 'present' ? esc(c.name || HQ.cfg.building.name) : '');
     const away = st.place === 'out' || st.place === 'heli';
     const ctl = !HQ.cfg.readonly && (s.human || opts.ctl) ? `<span class="octl">${away ? (st.cmd ? `<button data-out="back" title="외근 명령 취소 — 복귀">복귀</button>` : '') : `<button data-out="car" title="차량으로 외근(30분)">외근</button><button data-out="heli" class="hot" title="긴급 외근 — 옥상 헬기(30분)">긴급</button>`}</span>` : '';
     return `<li data-id="${esc(s.id)}" class="${HQ.sel === s.id ? 'sel' : ''} st-${st.state}">
       <span class="av" style="--c:${c.color}"><img src="${avatar(s)}" alt="" loading="lazy"></span>
       <span class="who"><b>${esc(s.name)}</b> <i>${esc(s.title === s.name ? c.name : s.title)}</i>
         <em title="${esc(st.note)}">${sub}${away && st.until ? ` · ~${hhmm(st.until)}` : ''}</em>${ctl}</span>
-      <span class="stt"><span class="badge ${st.state}">${STATE_KO[st.state]}</span>${where}<small>${st.since ? ago(st.since) : ''}</small></span></li>`;
+      <span class="stt"><span class="badge ${st.state}">${STATE_KO[st.state]}</span>${where}<small class="${st.flag === 'stale-work' ? 'warn' : ''}">${elapsed(st)}</small></span></li>`;
   }
   async function sendOuting(id, kind) {
     const body = kind === 'back' ? { id, cancel: true } : { id, minutes: 30, urgent: kind === 'heli' };
@@ -118,12 +140,16 @@
   }
   function renderTop() {
     const all = counts(() => true);
-    $('#tot').innerHTML = `<b>${all.busy}</b><span>/ ${all.total} 근무</span>`;
+    const look = lookList(); HQ.attn = look.length;
+    $('#tot').innerHTML = `<b>${all.busy}</b><span>/ ${all.total} 근무</span>${look.length ? `<button class="need" title="막힘·멈춤 의심 — 눌러서 보기">확인 필요 ${look.length}</button>` : ''}`;
+    const nb = $('#tot .need'); if (nb) nb.onclick = () => { if (HQ.lite) { const t = document.getElementById('lite-need'); if (t) t.scrollIntoView({ behavior: 'smooth' }); } else { if (HQ.hide.panel) setHide('panel', false); HQ.focusFloor(null); } };
     $('#pills').innerHTML = Object.entries(HQ.cfg.companies).map(([k, c]) => {
       const n = counts(s => s.company === k);
-      return `<button class="pill" data-co="${k}" style="--c:${c.color}"><i></i>${esc(c.name)} <b>${n.busy}</b>/${n.total}</button>`;
+      const fr = freshOf(k), blk = S.companyBlocked(HQ.data.companies[k]);
+      return `<button class="pill fr-${fr.level}${blk ? ' blk' : ''}" data-co="${k}" style="--c:${c.color}" title="원천 확인 ${esc(fr.text)}${blk ? ' · 막힘' : ''}"><i></i>${esc(c.name)} <b>${n.busy}</b>/${n.total}${fr.level === 'late' ? '<u>unreachable</u>' : ''}</button>`;
     }).join('');
-    document.querySelectorAll('#pills .pill').forEach(b => b.onclick = () => HQ.focusFloor(HQ.cfg.floors.find(f => f.company === b.dataset.co).n));
+    document.querySelectorAll('#pills .pill').forEach(b => b.onclick = () => { if (HQ.lite) { const t = document.getElementById('lite-' + b.dataset.co); if (t) t.scrollIntoView({ behavior: 'smooth' }); return; } HQ.focusFloor(HQ.cfg.floors.find(f => f.company === b.dataset.co).n); });
+    renderFresh();
   }
   function renderCompanies() {
     $('#companies').innerHTML = Object.entries(HQ.cfg.companies).map(([k, c]) => {
@@ -139,10 +165,11 @@
         <button class="xhide" data-hide="${k}" title="이 카드 숨기기" aria-label="${esc(c.name)} 카드 숨기기">–</button>
         <header><div><h3>${esc(c.name)}</h3><p>${esc(c.tagline)}</p></div><div class="num"><b>${n.busy}</b><span>/ ${n.total}</span></div></header>
         <div class="bar"><i style="width:${n.total ? (n.busy / n.total) * 100 : 0}%"></i></div>
+        ${metricsLine(k)}
         <div class="dots">${dots}</div>
         ${now}
         <footer>${floors.map(f => `<button data-floor="${f.n}" class="${HQ.mode.floor === f.n ? 'on' : ''}">${f.n}F ${esc(f.title.replace(c.name, '').trim() || c.name)}</button>`).join('')}
-          <span class="src ${src && src.ok ? 'ok' : 'bad'}" title="${esc((src && src.error) || c.source)}">${src && src.ok ? '실시간' : src && src.stale ? '연결 끊김 · 마지막 값' : '연결 끊김'}</span></footer>
+          <span class="src ${src && src.ok && freshOf(k).level !== 'late' ? 'ok' : 'bad'} fr-${freshOf(k).level}" data-fresh="${k}" title="${esc((src && src.error) || c.source || '')}">${srcText(k)}</span></footer>
       </section>`;
     }).join('');
     document.querySelectorAll('#companies .co').forEach(el => el.onclick = e => {
@@ -151,6 +178,15 @@
       if (d) return HQ.selectStaff(d.dataset.id);
       HQ.focusFloor(b ? Number(b.dataset.floor) : HQ.cfg.floors.find(f => f.company === el.dataset.co).n);
     });
+  }
+  function srcText(k) { const src = HQ.data && HQ.data.companies[k], fr = freshOf(k); return !src || !src.ok ? (src && src.stale ? '막힘 · 마지막 값' : '막힘') : fr.level === 'late' ? 'unreachable · ' + fr.text : fr.text; }
+  // 머리말 신선도(가장 최근 원천 확인 시각 기준) — 1초마다 글자만 고친다
+  function renderFresh() {
+    if (!HQ.data) return; const el = $('#fresh'); if (!el) return;
+    const fr = S.freshness(S.newest(HQ.data), HQ.cfg, Date.now());
+    el.textContent = fr.level === 'late' ? `${fr.text} · unreachable` : fr.text; el.className = 'fr-' + fr.level; el.title = '현황을 마지막으로 확인한 때';
+    const f2 = $('#fresh2'); if (f2) { f2.textContent = el.textContent; f2.className = el.className; }
+    document.querySelectorAll('[data-fresh]').forEach(x => { x.textContent = srcText(x.dataset.fresh); });
   }
   function renderRail() {
     const fl = HQ.cfg.floors.slice().sort((a, b) => fkey(a) < fkey(b) ? 1 : -1);
@@ -166,8 +202,9 @@
     if (n == null) {
       const working = HQ.staff.filter(s => statOf(s.id).busy).sort((a, b) => Date.parse(statOf(b.id).since || 0) - Date.parse(statOf(a.id).since || 0));
       const gym = HQ.staff.filter(s => statOf(s.id).place === 'gym'), outL = HQ.staff.filter(s => ['out', 'heli'].includes(statOf(s.id).place));
-      $('#panel-head').innerHTML = `<div><h2>지금 근무 중</h2><p>3개 회사 · ${working.length}명</p></div>`;
-      el.innerHTML = `<ul class="staff">${working.map(s => staffRow(s, { showFloor: true })).join('') || '<li class="empty">지금 근무 중인 담당자가 없습니다.</li>'}</ul>
+      const look = lookList(), mets = Object.keys(HQ.cfg.companies).map(k => metricsLine(k, true)).join('');
+      $('#panel-head').innerHTML = `<div><h2>지금 근무 중</h2><p>3개 회사 · ${working.length}명${look.length ? ` · <b class="needt">확인 필요 ${look.length}건</b>` : ''}</p></div>`;
+      el.innerHTML = `${mets ? `<div class="mwrap">${mets}</div>` : ''}${look.length ? `<h4 class="needh">확인 필요 · ${look.length}건 ${notifyBtn()}</h4><ul class="staff">${look.map(s => staffRow(s, { showFloor: true })).join('')}</ul><h4>근무 중 · ${working.length}명</h4>` : ''}<ul class="staff">${working.map(s => staffRow(s, { showFloor: true })).join('') || '<li class="empty">지금 근무 중인 담당자가 없습니다.</li>'}</ul>
         ${outL.length ? `<h4>외근 중 · ${outL.length}명</h4><ul class="staff">${outL.map(s => staffRow(s)).join('')}</ul>` : ''}
         ${gym.length ? `<h4>1층에서 운동 중 · ${gym.length}명</h4><ul class="staff">${gym.map(s => staffRow(s)).join('')}</ul>` : ''}
         <h4>층 안내</h4><ul class="floors">${HQ.cfg.floors.slice().sort((a, b) => fkey(a) < fkey(b) ? 1 : -1).map(f => `<li data-floor="${f.n}" style="--c:${f.color}"><b>${flabel(f)}</b><span>${esc(f.title)}</span></li>`).join('')}</ul>`;
@@ -177,7 +214,7 @@
       const away = f.lot || f.cafe ? [] : HQ.staff.filter(s => s.floor === n && statOf(s.id).floorNow !== n);
       const busy = here.filter(s => statOf(s.id).busy).length, agents = here.concat(away).filter(s => !s.human).length;
       $('#panel-head').innerHTML = `<button id="back" title="건물 전체로">←</button><div style="--c:${f.color}"><h2><span class="fbadge">${flabel(f)}</span> ${esc(f.title)}</h2><p>${f.cafe ? `${esc(HQ.cfg.building.name)} 전용 카페 · 이용 중 ${here.length}명` : f.lot ? `외근 ${here.length}명 · 차량 ${3 + ((HQ.cfg.vehicles && HQ.cfg.vehicles.pool.count) || 10)}대 · 헬기 1대` : f.roof ? `${esc(HQ.cfg.building.name)} · 3개 회사 대표` : n === 1 ? `운동 중 ${here.length}명` : `근무 ${busy} / ${agents}명`}${c ? ' · ' + esc(c.tagline) : ''}</p></div>`;
-      let html = `<ul class="staff">${here.map(s => staffRow(s)).join('') || `<li class="empty">${f.cafe ? '지금 카페에 온 사람이 없습니다. 자리에서 일하던 담당자가 수시로 음료를 사러 옵니다.' : f.lot ? '지금 외근 중인 사람이 없습니다.' : n === 1 ? '지금 운동 중인 사람이 없습니다. 30분 넘게 쉬는 담당자가 내려옵니다.' : '이 층에 있는 담당자가 없습니다.'}</li>`}</ul>`;
+      let html = `${f.company ? metricsLine(f.company) : ''}<ul class="staff">${here.map(s => staffRow(s)).join('') || `<li class="empty">${f.cafe ? '지금 카페에 온 사람이 없습니다. 자리에서 일하던 담당자가 수시로 음료를 사러 옵니다.' : f.lot ? '지금 외근 중인 사람이 없습니다.' : n === 1 ? '지금 운동 중인 사람이 없습니다. 30분 넘게 쉬는 담당자가 내려옵니다.' : '이 층에 있는 담당자가 없습니다.'}</li>`}</ul>`;
       if (f.lot) { const ex = HQ.staff.filter(s => s.human), vs = (HQ.cfg.vehicles && HQ.cfg.vehicles.exec) || [];
         html += `<h4>임원 차량 · 외근 명령</h4><ul class="staff">${ex.filter(s => !here.includes(s)).map(s => staffRow(s)).join('') || '<li class="empty">임원 전원 외근 중</li>'}</ul><h4>전용 주차</h4><ul class="cars">${vs.map(v => `<li data-car="${esc(v.owner)}">${v.image ? `<img src="${esc(v.image)}" alt="" loading="lazy">` : '<i></i>'}<div><b>${esc(v.model)}</b><span>${esc((HQ.byId[v.owner] || {}).name || '')} ${esc((HQ.byId[v.owner] || {}).title || '')} · ${esc(v.colorName || '')}</span><span>${esc(v.plate || '')}</span></div></li>`).join('')}</ul><ul class="plain"><li><span class="t">${esc(HQ.cfg.vehicles.pool.model)} × ${HQ.cfg.vehicles.pool.count}</span>업무용 차량 — 쉬는 직원이 수시로 사용</li><li><span class="t">HELICOPTER</span>써포츠 헬기 — 옥상, 긴급 외근</li></ul><p class="hintp">임원은 2시간마다 한 번 외근을 나갑니다. 「외근」「긴급」 버튼이나 도구 명령으로 바로 보낼 수 있습니다.</p>`; }
       if (f.cafe) { const dr = HQ.staff.filter(s => HQ.drinks && HQ.drinks[s.id]);
@@ -189,6 +226,7 @@
       el.innerHTML = html;
       $('#back').onclick = () => HQ.focusFloor(null);
     }
+    el.querySelectorAll('#notify-on').forEach(b => b.onclick = e => { e.stopPropagation(); askNotify(); });
     el.querySelectorAll('.staff li[data-id]').forEach(li => li.onclick = e => { const b = e.target.closest('[data-out]'); if (b) { e.stopPropagation(); return sendOuting(li.dataset.id, b.dataset.out); } HQ.selectStaff(li.dataset.id); });
     el.querySelectorAll('.cars li[data-car]').forEach(li => li.onclick = () => HQ.emit('vehicle', li.dataset.car));
     el.querySelectorAll('.floors li').forEach(li => li.onclick = () => HQ.focusFloor(Number(li.dataset.floor)));
@@ -218,7 +256,33 @@
     if (document.body.dataset.cards !== String(shown)) document.body.dataset.cards = shown;
     if (document.body.classList.contains('hide-panel') !== !!HQ.hide.panel) document.body.classList.toggle('hide-panel', !!HQ.hide.panel);
   }
-  function render() { if (!HQ.cfg || !HQ.data) return; renderViews(); renderTop(); renderCompanies(); renderRail(); renderPanel(); document.body.dataset.mode = HQ.mode.floor == null ? 'tower' : 'floor'; }
+  // ---------- 요약 목록 보기(3D 를 안 쓰는 환경: 좁은 화면·동작 줄이기) — 판정·지표·신선도는 3D 화면과 같은 함수를 쓴다 ----------
+  function renderLite() {
+    const el = $('#lite'); if (!el) return; const now = Date.now(), sum = S.summarize(HQ.cfg, HQ.data, now), look = sum.reduce((a, c) => a.concat(c.rows.filter(r => S.needsLook(r.kind)).map(r => ({ ...r, co: c.name }))), []);
+    const row = (r, co) => `<li class="k-${r.kind}"><span class="who"><b>${esc(r.name)}</b><i>${co ? esc(co) + ' · ' : ''}${esc(r.floor)} ${esc(r.title)}</i>${r.note && r.kind !== 'idle' ? `<em>${esc(r.note)}</em>` : r.kind === 'blocked' && r.reason ? `<em>${esc(r.reason)}</em>` : ''}</span><span class="stt"><span class="badge ${r.kind}">${S.KO[r.kind]}</span><small class="${r.kind === 'stale-work' ? 'warn' : ''}">${esc(S.elapsedText(r))}</small></span></li>`;
+    el.innerHTML = `<div class="lbar"><div><h1>${esc(HQ.cfg.building.name)} 운영 현황</h1><p>요약 목록 보기 · 3개 회사 · 확인 <span id="fresh2"></span></p></div><div class="lbtn"><button id="go3d">3D로 보기</button><a href="status.html">표로 보기</a></div></div>
+      ${look.length ? `<section class="card need" id="lite-need"><h2>확인 필요 · ${look.length}건 ${notifyBtn()}</h2><ul class="rows">${look.map(r => row(r, r.co)).join('')}</ul></section>` : ''}
+      ${sum.map(c => `<section class="card" id="lite-${c.key}" style="--c:${c.color}"><header><div><h2>${esc(c.name)}</h2><p>${esc(c.tagline)}</p></div><div class="num"><b>${c.busy}</b><span>/ ${c.total} 근무</span></div></header>
+        <p class="src fr-${c.fresh.level}${c.blocked ? ' blk' : ''}" data-fresh="${c.key}">${esc(srcText(c.key))}</p>${c.blocked ? `<p class="blkmsg">막힘 — ${esc(c.error || '현황 원천 연결 실패')}</p>` : ''}
+        ${metricsLine(c.key)}<ul class="rows">${c.rows.map(r => row(r)).join('')}</ul></section>`).join('')}
+      <div class="legend">${S.legendHtml()}</div>`;
+    $('#go3d').onclick = () => setView('3d'); renderFresh();
+    const nbt = el.querySelector('#notify-on'); if (nbt) nbt.onclick = askNotify;
+  }
+  // ---------- 알림(선택): 막힘·멈춤 의심이 새로 생기면 — 사용자가 켠 경우에만 ----------
+  const notifyOn = () => { try { return 'Notification' in window && Notification.permission === 'granted' && localStorage.getItem('hq.notify') === '1'; } catch { return false; } };
+  const notifyBtn = () => !('Notification' in window) || notifyOn() ? '' : '<button id="notify-on" class="mini" title="막힘·멈춤 의심이 새로 생기면 브라우저 알림">알림 켜기</button>';
+  async function askNotify() { try { const p = await Notification.requestPermission(); if (p === 'granted') localStorage.setItem('hq.notify', '1'); } catch { /* 지원 안 함 */ } render(); }
+  let lookPrev = null;
+  function checkNew() {
+    const cur = new Set(lookList().map(s => s.id)), fresh = lookPrev ? [...cur].filter(id => !lookPrev.has(id)) : []; lookPrev = cur;   // 처음 읽은 것은 알리지 않는다
+    if (fresh.length && notifyOn()) { try { new Notification(`${HQ.cfg.building.name} · 확인 필요 ${cur.size}건`, { body: fresh.map(id => `${HQ.byId[id].name} — ${STATE_KO[statOf(id).kind] || ''}`).join('\n'), tag: 'hq-need' }); } catch { /* 무시 */ } }
+  }
+  function render() {
+    if (!HQ.cfg || !HQ.data) return;
+    if (HQ.lite) { renderTop(); renderLite(); return; }
+    renderViews(); renderTop(); renderCompanies(); renderRail(); renderPanel(); document.body.dataset.mode = HQ.mode.floor == null ? 'tower' : 'floor';
+  }
 
   // ---------- 리포트 창 ----------
   async function openReport(p) {
@@ -251,10 +315,12 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('#modal').hidden) $('#modal').hidden = true; else if (HQ.mode.floor != null) HQ.focusFloor(null); } });
 
   // ---------- 데이터 ----------
+  let lastPoll = 0;
   async function poll() {
+    lastPoll = Date.now();
     try {
       const d = await readTower();
-      HQ.data = d; computeOutings(); computeGym(); render(); HQ.emit('data', d);
+      HQ.data = d; computeOutings(); computeGym(); render(); checkNew(); HQ.emit('data', d);
       $('#conn').textContent = HQ.cfg.readonly ? '현황 기준 ' + new Date(d.time).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '갱신 ' + new Date().toLocaleTimeString('ko-KR', { hour12: false }); $('#conn').className = 'ok';
     } catch (e) { $('#conn').textContent = '서버 연결 끊김'; $('#conn').className = 'bad'; }
   }
@@ -282,6 +348,11 @@
     document.title = cfg.building.name + ' · ' + Object.values(cfg.companies).map(c => c.name).join(' · ');
     await poll(); pollReports(); tick();
     resolveReady(cfg);
-    setInterval(poll, HQ.cfg.readonly ? 60000 : 4000); setInterval(pollReports, HQ.cfg.readonly ? 600000 : 20000); setInterval(tick, 10000);   // 공개(읽기 전용) 화면은 1분마다만 다시 읽는다
+    // 공개(읽기 전용) 화면은 1분마다, 이 PC 화면은 4초마다 다시 읽는다. 탭이 뒤에 가 있으면 5분으로 늘리고, 돌아오면 바로 한 번 읽는다(2026-11-26).
+    setInterval(() => { if (document.hidden && Date.now() - lastPoll < 300000) return; poll(); }, HQ.cfg.readonly ? 60000 : 4000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    setInterval(pollReports, HQ.cfg.readonly ? 600000 : 20000); setInterval(tick, 10000); setInterval(renderFresh, 1000);
+    const lg = $('#legend'); if (lg) lg.innerHTML = S.legendHtml();
+    const tl = $('#to-list'); if (tl) tl.onclick = e => { e.preventDefault(); setView('list'); };
   })();
 })();

@@ -226,3 +226,67 @@ body[data-cards="0"] #companies{display:none}
   #rail button{width:44px;padding:4px 0 3px;border-radius:10px}
   #rail button b{font-size:12px}#rail button span{font-size:9px}
 }
+
+/* ===== 2026-11-26 현황판 개선: 상태 6종 · 지표 · 신선도 · 요약 목록 ===== */
+:root{--k-working:#4ea1ff;--k-directing:#b388ff;--k-waiting:#9aa0ad;--k-blocked:#ff5d6c;--k-idle:#6f6990;--k-stale:#ff9a3c}
+.badge.working{color:var(--k-working);border-color:var(--k-working);background:rgba(78,161,255,.12)}
+.badge.directing{color:var(--k-directing);border-color:var(--k-directing);background:rgba(179,136,255,.12)}
+.badge.waiting{color:var(--k-waiting);border-color:rgba(154,160,173,.6);background:rgba(154,160,173,.08)}
+.badge.blocked{color:var(--k-blocked);border-color:var(--k-blocked);background:rgba(255,93,108,.12)}
+.badge.stale-work{color:var(--k-stale);border-color:var(--k-stale);background:rgba(255,154,60,.12)}
+.badge.idle{color:var(--lounge);border-color:rgba(143,136,179,.5);opacity:.8}
+.dot.st-working{border-color:var(--k-working);box-shadow:0 0 10px rgba(78,161,255,.6)}
+.dot.st-directing{border-color:var(--k-directing);box-shadow:0 0 10px rgba(179,136,255,.6)}
+.dot.st-waiting{border-color:var(--k-waiting);opacity:.8}
+.dot.st-blocked{border-color:var(--k-blocked);opacity:1;box-shadow:0 0 10px rgba(255,93,108,.55)}
+.dot.st-stale-work{border-color:var(--k-stale);opacity:1;border-style:dashed}
+small.warn{color:var(--k-stale)!important;font-weight:700;white-space:nowrap}
+/* 범례(패널 아래 한 줄) */
+.legend{display:flex;flex-wrap:nowrap;gap:10px;padding:7px 16px 0;font-size:10.5px;color:var(--dim);overflow-x:auto;scrollbar-width:none;white-space:nowrap;flex:none}
+.legend .lg i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+/* 지표 한 줄 */
+.metrics{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:2px 0 9px;font-size:11.5px;color:var(--muted);line-height:1.5}
+.metrics .mco{color:var(--c);font-weight:700;font-size:11px}
+.metrics .m i{font-style:normal;color:var(--dim);margin-right:5px}.metrics .m b{color:var(--text);font-weight:700}.metrics .m em{font-style:normal;color:var(--dim);margin-left:5px;font-size:10.5px}
+.mwrap{padding:2px 0 4px;border-bottom:1px solid var(--line);margin-bottom:8px}.mwrap .metrics{margin:0 0 5px}
+#panel-body>.metrics{margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+/* 신선도 */
+#fresh{margin-left:8px;color:var(--dim)}#fresh::before{content:"· "}#fresh.fr-dim{opacity:.6}#fresh.fr-late{color:var(--k-stale);font-weight:700}
+.pill.fr-dim{opacity:.5}.pill.fr-late{border-color:var(--k-stale);color:var(--k-stale)}.pill.fr-late i{background:var(--k-stale);box-shadow:0 0 10px var(--k-stale)}
+.pill u{text-decoration:none;font-size:10px;letter-spacing:.04em;padding:1px 6px;border-radius:999px;background:rgba(255,154,60,.16);color:var(--k-stale)}
+.pill.blk{border-color:var(--k-blocked)}.pill.blk i{background:var(--k-blocked);box-shadow:0 0 10px var(--k-blocked)}
+.src.fr-dim{opacity:.6}.src.fr-late{color:var(--k-stale)}.src.fr-late::before{background:var(--k-stale);box-shadow:0 0 8px var(--k-stale);animation:none}
+/* 확인 필요 */
+.tot .need,.mini{margin-left:10px;padding:3px 10px;border-radius:999px;border:1px solid var(--k-stale);background:rgba(255,154,60,.14);color:var(--k-stale);font-size:11.5px;font-weight:700;white-space:nowrap}
+.mini{margin-left:6px;padding:1px 8px;font-size:10.5px;border-color:var(--line2);background:none;color:var(--muted);font-weight:600}
+.needt,.needh{color:var(--k-stale)}
+/* 요약 목록 보기 */
+#lite{display:none}
+body.lite{overflow:auto;height:auto}html:has(body.lite){overflow:auto;height:auto}
+body.lite #stage,body.lite #loading,body.lite #companies,body.lite #rail,body.lite #panel,body.lite #panel-show,body.lite #hint,body.lite #views,body.lite #tip,body.lite #carcard{display:none!important}
+body.lite #top{background:rgba(7,6,26,.96);border-bottom:1px solid var(--line)}
+body.lite .pills{display:none}
+body.lite #lite{display:block;max-width:760px;margin:0 auto;padding:calc(var(--top) + 14px) 12px 40px}
+#lite .lbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:4px 2px 14px}
+#lite h1{font-size:18px;margin:0}#lite .lbar p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+#lite .lbtn{display:flex;gap:8px;align-items:center;flex:none}
+#lite .lbtn button,#lite .lbtn a{padding:8px 13px;border-radius:999px;border:1px solid var(--line2);background:var(--glass2);color:var(--text);font-size:13px;text-decoration:none}
+#lite .lbtn button{border-color:#6a3cff;background:rgba(106,60,255,.25);font-weight:700}
+#lite .card{background:var(--glass);border:1px solid var(--line);border-left:3px solid var(--c,var(--line2));border-radius:16px;padding:14px 14px 8px;margin-bottom:12px}
+#lite .card.need{border-left-color:var(--k-stale)}#lite .card.need h2{color:var(--k-stale)}
+#lite .card header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#lite h2{font-size:16px;margin:0}#lite .card header p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+#lite .num b{font-size:24px;font-weight:900;color:var(--text)}#lite .num span{font-size:12px;color:var(--muted);margin-left:4px}
+#lite p.src{display:flex;align-items:center;gap:6px;margin:6px 0 8px;font-size:11.5px;color:var(--muted)}
+#lite .blkmsg{margin:0 0 8px;font-size:12px;color:var(--k-blocked)}
+#lite .rows{list-style:none;margin:6px 0 0;padding:0}
+#lite .rows li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+#lite .rows .who{min-width:0}#lite .rows .who b{font-size:14px}#lite .rows .who i{font-style:normal;color:var(--dim);font-size:11.5px;margin-left:7px}
+#lite .rows .who em{display:block;font-style:normal;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lite .rows .stt{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none}#lite .rows small{font-size:11px;color:var(--dim)}
+#lite .rows li.k-idle .who b{color:var(--muted);font-weight:500}
+#lite .legend{flex-wrap:wrap;padding:6px 2px 0;font-size:11.5px}
+.tot{white-space:nowrap;flex:none}
+@media (max-width:980px){.tot .need{margin-left:6px;padding:2px 8px;font-size:10.5px}#fresh{margin-left:4px}}
+@media (max-width:1280px){.pill u{display:none}.tot .need{margin-left:6px;padding:2px 8px;font-size:10.5px}}
+#fresh2.fr-dim{opacity:.6}#fresh2.fr-late{color:var(--k-stale);font-weight:700}

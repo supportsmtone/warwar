@@ -34,7 +34,7 @@ const THEME = {
   4: { wall: 0x33241a, wall2: 0x281c14, wood: 0xffe2c2, carpet: 0x8a4512, sofa: 0xff8400 },
   5: { wall: 0x0f2836, wall2: 0x0b1f2b, wood: 0xc4cfe0, carpet: 0x0f5f63, sofa: 0x14b8ae },
 };
-const C_WORK = 0x39e58c, C_DIRECT = 0xffd23f;
+const C_WORK = 0x4ea1ff, C_DIRECT = 0xb388ff;   // 2026-11-26: 근무 파랑·지휘 보라(패널 범례와 같은 색)
 
 // ---------- 렌더러 ----------
 const el = document.getElementById('stage');
@@ -461,6 +461,13 @@ const ringGeo = new THREE.RingGeometry(0.44, 0.58, 36), shGeo = new THREE.PlaneG
 const people = {};
 const baseY = f => f === 0 ? LOT.GY : floorY(f);
 const hashN = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const alertTexCache = {};
+function alertTex(kind) {   // 2026-11-26: 머리 위 아이콘 — 'stale-work' 주황 느낌표, 'blocked' 빨강 가위표, 'attn:N' 대표 옆 확인 필요 건수
+  if (alertTexCache[kind]) return alertTexCache[kind];
+  const attn = kind.startsWith('attn:'), col = kind === 'blocked' ? '#ff5d6c' : '#ff9a3c', txt = attn ? kind.slice(5) : kind === 'blocked' ? '×' : '!';
+  return alertTexCache[kind] = canvasTex(128, 128, (g, w, h) => { g.beginPath(); g.arc(w / 2, h / 2, 52, 0, Math.PI * 2); g.fillStyle = 'rgba(12,10,30,.9)'; g.fill(); g.lineWidth = 9; g.strokeStyle = col; g.stroke();
+    g.font = `900 ${attn && txt.length > 1 ? 58 : 76}px ${FONT}`; g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, w / 2, h / 2 + 4); });
+}
 function labelTex(name) {
   return canvasTex(320, 96, (g, w, h) => { g.font = `800 44px ${FONT}`; const tw = Math.min(w - 20, g.measureText(name).width + 44); g.fillStyle = 'rgba(12,10,30,.82)';
     g.beginPath(); g.roundRect((w - tw) / 2, 16, tw, 64, 32); g.fill(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(name, w / 2, 50); });
@@ -504,6 +511,7 @@ class Person {
     this.sp = new THREE.Sprite(this.mats.idle); this.sp.userData.id = s.id; scene.add(this.sp);
     this.ghost = new THREE.Sprite(this.mats.idle); this.ghost.visible = false; this.ghost.renderOrder = 1; scene.add(this.ghost);
     this.label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(s.name), transparent: true, depthTest: false, toneMapped: false })); this.label.scale.set(1.5, 0.45, 1); this.label.renderOrder = 20; this.label.visible = false; scene.add(this.label);
+    this.alert = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, toneMapped: false })); this.alert.scale.set(0.5, 0.5, 1); this.alert.renderOrder = 21; this.alert.visible = false; this.alertKind = ''; scene.add(this.alert);
     this.ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: C_WORK, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false })); this.ring.rotation.x = -Math.PI / 2; scene.add(this.ring);
     this.shadow = new THREE.Mesh(shGeo, new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.9 })); this.shadow.rotation.x = -Math.PI / 2; scene.add(this.shadow);
   }
@@ -592,6 +600,9 @@ class Person {
     if (this.carry) { const on = vis && this.pose === 'walk' && !!this.errand && this.errand.stage === 'back'; this.carry.visible = on; if (on) this.carry.position.set(this.pos.x + this.dir * 0.3, y0 + 0.93 + bob, this.pos.z + 0.03); }
     const showLabel = vis && (mode.floor === this.floor || (mode.floor === LOTN && this.floor === 0) || (mode.floor === CAFN && this.floor === 1 && this.pos.x > 14.6));
     this.label.visible = showLabel; if (showLabel) this.label.position.set(this.pos.x, y0 + (this.pose === 'seat' ? 1.78 : 2.02) + bob + lift, this.pos.z);
+    const ak = st.flag || (this.id === 'hq:ceo' && HQ.attn > 0 ? 'attn:' + HQ.attn : '');
+    if (ak !== this.alertKind) { this.alertKind = ak; if (ak) { this.alert.material.map = alertTex(ak); this.alert.material.needsUpdate = true; } }
+    this.alert.visible = vis && !!ak; if (this.alert.visible) { const k = 1 + 0.08 * Math.sin(now / 300); this.alert.scale.set(0.5 * k, 0.5 * k, 1); this.alert.position.set(this.pos.x + (ak.startsWith('attn:') ? 0.55 : 0), y0 + (this.pose === 'seat' ? 1.78 : 2.02) + (showLabel ? 0.5 : 0.12) + bob + lift, this.pos.z); }
   }
   arrived(now) {
     const a = this.dest; this.anchor = a; this.vel = 0;
@@ -663,15 +674,15 @@ function applyData() {
     F[n].busy = r; for (const m of F[n].ceilMats) m.color.setHex(0xfff0d8).multiplyScalar(0.75 + 0.75 * r); }
   drawTotem(); drawBoards(); drawPavBoard();
 }
-const KO = { working: '근무 중', directing: '지휘 중', lounge: '휴게 중', gym: '운동 중', present: '재석', out: '외근 중', heli: '긴급 외근' };
+const KO = { working: '근무 중', directing: '지휘 중', waiting: '대기', blocked: '막힘', 'stale-work': '멈춤 의심', lounge: '휴게 중', gym: '운동 중', present: '재석', out: '외근 중', heli: '긴급 외근' };
 function drawBoards() {
-  const CO = { working: '#39e58c', directing: '#ffd23f', lounge: '#7f77a8', gym: '#7dd3fc', present: '#e9d48a', out: '#ffb25c', heli: '#ff6b81' };
+  const CO = { working: '#4ea1ff', directing: '#b388ff', waiting: '#9aa0ad', blocked: '#ff5d6c', 'stale-work': '#ff9a3c', lounge: '#7f77a8', gym: '#7dd3fc', present: '#e9d48a', out: '#ffb25c', heli: '#ff6b81' };
   for (const n of NS) { const b = F[n].board; if (!b) continue; const g = b.canvas.getContext('2d'), w = 880, h = 495, fd = FLOORS[n], list = HQ.staff.filter(s => s.floor === n);
     g.fillStyle = '#120e2b'; g.fillRect(0, 0, w, h); g.fillStyle = fd.color; g.fillRect(0, 0, w, 8);
     g.textBaseline = 'middle'; g.textAlign = 'left'; g.font = `900 34px ${FONT}`; g.fillStyle = '#fff'; g.fillText(`${n}F ${fd.title} 상황판`, 28, 48);
     g.textAlign = 'right'; g.font = `600 24px ${FONT}`; g.fillStyle = '#a79ccb'; g.fillText(new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' }), w - 28, 48);
     list.forEach((s, i) => { const st = HQ.stat(s.id), col = i % 3, row = Math.floor(i / 3), x = 28 + col * 278, y = 90 + row * 128;
-      g.fillStyle = st.state === 'working' ? '#14402f' : st.state === 'directing' ? '#4a3b10' : '#241c4d'; g.fillRect(x, y, 262, 114); g.fillStyle = CO[st.state] || '#7f77a8'; g.fillRect(x, y, 7, 114);
+      g.fillStyle = st.state === 'working' ? '#14305a' : st.state === 'directing' ? '#33245c' : st.state === 'stale-work' ? '#4a2c10' : st.state === 'blocked' ? '#4a1620' : '#241c4d'; g.fillRect(x, y, 262, 114); g.fillStyle = CO[st.state] || '#7f77a8'; g.fillRect(x, y, 7, 114);
       g.textAlign = 'left'; g.font = `800 26px ${FONT}`; g.fillStyle = '#f1ecff'; g.fillText(s.name, x + 22, y + 32);
       g.font = `700 22px ${FONT}`; g.fillStyle = CO[st.state] || '#7f77a8'; g.fillText(KO[st.state] || st.state, x + 22, y + 72);
       if (st.note) { g.font = `400 16px ${FONT}`; g.fillStyle = '#cfc8ee'; g.fillText(st.note.length > 17 ? st.note.slice(0, 17) + '…' : st.note, x + 22, y + 98); } });
