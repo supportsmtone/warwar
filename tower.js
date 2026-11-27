@@ -723,7 +723,8 @@ function setDrink(p, kind) {
 // ---------- 점심시간 직원 식당(2026-11-27 대표 지시 「동선 추가」) ----------
 // 12:00~13:00(이 컴퓨터 시각)에 자리에 앉아 있던 직원이 한 사람씩 시차를 두고(0~25분) 식당에 가서 9~16분 먹고 돌아온다. 하루 한 번, 동시에 8명까지.
 // 확인용: 주소에 ?lunch=1 을 붙이면 지금을 점심시간으로 보고 60배 빠르게 돈다.
-const LUNCH = { force: /[?&]lunch=1/.test(location.search), speed: /[?&]lunch=1/.test(location.search) ? 1 / 60 : 1, max: 8, day: '', done: {}, t0: 0 };
+const LUNCH_TEST = typeof location !== 'undefined' && /[?&]lunch=1/.test(location.search || '');
+const LUNCH = { force: LUNCH_TEST, speed: LUNCH_TEST ? 1 / 60 : 1, max: 8, day: '', done: {}, t0: 0 };
 let dineAt = 0;
 function dineTick(now) {
   if (now - dineAt < 1000) return; dineAt = now;

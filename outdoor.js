@@ -109,44 +109,48 @@ export function buildOutdoor(ctx) {
   function makeCar(spec, plate) {
     const P = TYPES[spec.type] || TYPES.sedan, brand = spec.brand || 'mercedes', g = new THREE.Group(), col = new THREE.Color(spec.color), hc = P.W * P.cabW / 2, FX = P.L / 2 + BEV, RX = -(P.L / 2 + BEV), suv = spec.type === 'suv', sport = spec.type === 'sports';
     const ex = !!spec.exec, lum = col.getHSL({}).l, pearl = lum > 0.85;
-    const paint = new THREE.MeshPhysicalMaterial({ color: col, metalness: pearl ? 0.12 : 0.65, roughness: pearl ? 0.42 : 0.26, clearcoat: pearl ? 0.5 : 1, clearcoatRoughness: pearl ? 0.2 : 0.06, envMap: ctx.env || null, envMapIntensity: pearl ? 0.14 : lum > 0.75 ? 0.24 : 0.42 });
-    const hw = P.W / 2, Lh = P.L / 2 + BEV, KF = 0.24, KR = 0.15, TP = 0;   // TP(끝을 좁히기)는 쓰지 않는다 — 옆판에 중간 꼭짓점이 없어 문 쪽이 안으로 꺼진다
+    const paint = new THREE.MeshPhysicalMaterial({ color: col, metalness: pearl ? 0.12 : 0.65, roughness: pearl ? 0.42 : 0.26, clearcoat: pearl ? 0.5 : 1, clearcoatRoughness: pearl ? 0.2 : 0.06, envMap: ctx.env || null, envMapIntensity: pearl ? 0.16 : lum > 0.75 ? 0.28 : 0.55 });
+    const hw = P.W / 2, Lh = P.L / 2 + BEV, KF = 0.24, KR = 0.15, TP = 0.05, TH = 0.13, SILL = 0.025;   // TP(끝을 좁히기)는 쓰지 않는다 — 옆판에 중간 꼭짓점이 없어 문 쪽이 안으로 꺼진다
     const edge = (z, K) => K * Math.max(0, (Math.abs(z) / hw - 0.42) / 0.58) ** 2;                    // 앞·뒤 면이 모서리로 갈수록 물러나는 양(가운데는 평평)
     const slope = (z, K) => 2 * K * Math.max(0, Math.abs(z) / hw - 0.42) / (0.58 * 0.58) / hw;
-    const ext = (path, depth, bev, mat, seg = 5, body = false) => { let geo = new THREE.ExtrudeGeometry(shapeOf(path), { depth, steps: body ? 16 : 1, bevelEnabled: bev > 0, bevelSize: bev, bevelThickness: bev, bevelSegments: seg, curveSegments: body ? 20 : 14 }); geo.translate(0, 0, -depth / 2);
+    // 2026-11-27 현실감 보완(대표 「너무 레고 같다」): 곧은 윤곽선을 잘게 나눠야 앞뒤를 좁혀도(TP) 옆판이 꺼지지 않는다 · 유리는 위로 갈수록 안으로 기운다(TH) · 문턱은 살짝 접힌다(SILL)
+    const dens = path => { const out = []; let prev = null; for (const q of path) { if (!q.c && prev) { const n = Math.ceil(Math.hypot(q[0] - prev[0], q[1] - prev[1]) / 0.16); for (let i = 1; i < n; i++) out.push([prev[0] + (q[0] - prev[0]) * i / n, prev[1] + (q[1] - prev[1]) * i / n]); } out.push(q); prev = q.c ? [q.c[2], q.c[3]] : q; } return out; };
+    const tumble = (m, y0) => { const q = m.geometry.attributes.position; for (let i = 0; i < q.count; i++) { const y = q.getY(i), z = q.getZ(i); if (y > y0 && Math.abs(z) > 0.05) q.setZ(i, z - Math.sign(z) * Math.sin(TH) * (y - y0)); } q.needsUpdate = true; m.geometry.computeVertexNormals(); return m; };
+    const ext = (path, depth, bev, mat, seg = 5, body = false) => { let geo = new THREE.ExtrudeGeometry(shapeOf(body ? dens(path) : path), { depth, steps: body ? 16 : 1, bevelEnabled: bev > 0, bevelSize: bev, bevelThickness: bev, bevelSegments: seg, curveSegments: body ? 20 : 14 }); geo.translate(0, 0, -depth / 2);
       if (body) { const q = geo.attributes.position; for (let i = 0; i < q.count; i++) { let x = q.getX(i), z = q.getZ(i); const ax = Math.abs(x), sT = Math.min(1, Math.max(0, (ax - 0.5 * Lh) / (0.5 * Lh))), tB = Math.min(1, Math.max(0, (ax - 0.72 * Lh) / (0.28 * Lh)));
-          z *= 1 - TP * sT * sT; x -= Math.sign(x) * edge(z, x > 0 ? KF : KR) * tB; q.setX(i, x); q.setZ(i, z); } }   // 위에서 보면 앞뒤가 좁아지고 모서리가 둥글다
+          z *= 1 - TP * sT * sT; { const yn = Math.min(1, Math.max(0, (q.getY(i) - P.lower[0][1]) / 0.42)); z *= 1 - SILL * (1 - yn) ** 2; } x -= Math.sign(x) * edge(z, x > 0 ? KF : KR) * tB; q.setX(i, x); q.setZ(i, z); } }   // 위에서 보면 앞뒤가 좁아지고 모서리가 둥글다
       if (bev > 0) geo = smooth(geo);
       const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
     const hl = glow(0xfff6e0, 0.4), tl = glow(0xff2a3a, 0.6), rv = glow(0xffffff, 0.05), ind = glow(0xffa51f, 0.06);
-    ext(P.lower, P.W - BEV * 2, BEV, paint, 5, true);
+    ext(P.lower, P.W - BEV * 2, BEV, paint, 8, true);
     const b = (w, h, d, mat, x, y, z, o) => box(g, w, h, d, mat, x, y, z, { cast: false, ...(o || {}) });
     const moldX = (P.glass[0][0] + P.glass[P.glass.length - 1].c[2]) / 2;
     const li = P.lower.findIndex(q => q.c && q.c[2] > 1.4), hS = P.lower[li - 1], hC = P.lower[li].c, nS = [hC[2], hC[3]], nC = P.lower[li + 1].c;   // 보닛 곡선·앞코 곡선
     if (!ex) {
-      ext(P.cabin, hc * 2 - BEVC * 2, BEVC, paint);
-      ext(P.glass, hc * 2 + 0.014, 0, glassCar).castShadow = false;
-      quad(g, P.ws[0], P.ws[1], hc * 2 * 0.9, glassCar, BEVC + 0.012); quad(g, P.rw[0], P.rw[1], hc * 2 * (suv ? 0.84 : 0.88), glassCar, BEVC + 0.012);
-      if (P.pillar != null) b(0.09, P.top - P.belt - 0.08, hc * 2 + 0.024, paint, P.pillar, (P.top + P.belt) / 2 + 0.02, 0);          // B 필러
+      tumble(ext(P.cabin, hc * 2 - BEVC * 2, BEVC, paint), P.belt);
+      tumble(ext(P.glass, hc * 2 + 0.014, 0, glassCar), P.belt).castShadow = false;
+      quad(g, P.ws[0], P.ws[1], hc * 2 * 0.86, glassCar, BEVC + 0.012); quad(g, P.rw[0], P.rw[1], hc * 2 * (suv ? 0.8 : 0.84), glassCar, BEVC + 0.012);
+      if (P.pillar != null) b(0.09, P.top - P.belt - 0.08, hc * 2 - 0.1, paint, P.pillar, (P.top + P.belt) / 2 + 0.02, 0);          // B 필러
       b(P.L * 0.5, 0.022, hc * 2 + 0.03, chrome, moldX, P.belt + 0.05, 0);                                                              // 창 아래 크롬 몰딩
     } else {
       // 임원 차량: 옆 창틀 2장 + 지붕 + 비치는 유리 → 실내(시트·운전대·계기판·화면·무드등)가 들여다보인다
       const sill = P.glass[0][1], roofY = P.top + BEVC, base = sill + 0.072, hV = roofY - 0.06 - base;
-      const gx = new THREE.MeshPhysicalMaterial({ color: 0x1d2a3e, transparent: true, opacity: 0.4, metalness: 0.1, roughness: 0.22, specularIntensity: 0.25, side: THREE.DoubleSide, depthWrite: false, envMap: ctx.env || null, envMapIntensity: 0.35 });
+      const gx = new THREE.MeshPhysicalMaterial({ color: 0x0c1524, transparent: true, opacity: 0.74, metalness: 0.35, roughness: 0.08, clearcoat: 1, specularIntensity: 0.6, side: THREE.DoubleSide, depthWrite: false, envMap: ctx.env || null, envMapIntensity: 0.75 });   // 2026-11-27: 짙은 선팅 유리(0.4 → 0.74) — 속이 훤히 비쳐 뼈대만 보이던 것을 실제 차 유리처럼
       const trim = std(0x14141b, { rough: 0.85 }), leather = std({ volvo: 0xb98a5e, maserati: 0x8a1620, bmw: 0xe6dccb }[brand] || 0x6b4a33, { rough: 0.62 }), acc = { volvo: 0xbfe3ff, maserati: 0xff3344, bmw: 0x4d8dff }[brand] || 0xffffff, scr = glow(0x6fb8ff, 0.62), amb = glow(acc, 1.0);
       const fsh = shapeOf(P.cabin); fsh.holes.push(trace(new THREE.Path(), P.glass));
       const fgeo = smooth(new THREE.ExtrudeGeometry(fsh, { depth: 0.04, bevelEnabled: true, bevelSize: BEVC, bevelThickness: 0.03, bevelSegments: 4, curveSegments: 18 })), ggeo = new THREE.ShapeGeometry(shapeOf(P.glass), 14);
       for (const sz of [-1, 1]) {
-        const fr = new THREE.Mesh(fgeo, paint); fr.position.z = sz * (hc - 0.05) - 0.02; fr.castShadow = true; g.add(fr);            // 옆 창틀(A·C 필러)
-        const gp = new THREE.Mesh(ggeo, gx); gp.position.z = sz * (hc - 0.014); g.add(gp);                                            // 옆 유리
-        if (P.pillar != null) b(0.1, roofY - sill - 0.05, 0.07, darkPl, P.pillar, (roofY + sill) / 2, sz * (hc - 0.045));              // B 필러(검정)
+        const tin = Math.sin(TH) * sill;   // 창 아랫선(sill)을 축으로 기울인다
+        const fr = new THREE.Mesh(fgeo, paint); fr.position.z = sz * (hc - 0.05) - 0.02 + sz * tin; fr.rotation.x = -sz * TH; fr.castShadow = true; g.add(fr);            // 옆 창틀(A·C 필러)
+        const gp = new THREE.Mesh(ggeo, gx); gp.position.z = sz * (hc - 0.014) + sz * tin; gp.rotation.x = -sz * TH; g.add(gp);                                            // 옆 유리
+        if (P.pillar != null) { const bp = b(0.1, roofY - sill - 0.05, 0.07, darkPl, P.pillar, (roofY + sill) / 2, sz * (hc - 0.045 - Math.sin(TH) * (roofY - sill) / 2)); bp.rotation.x = -sz * TH; }              // B 필러(검정)
         b(P.L * 0.5, 0.022, 0.03, chrome, moldX, P.belt + 0.05, sz * hc);                                                              // 창 아래 크롬 몰딩
         b(Math.min(1.7, P.L * 0.32), 0.012, 0.012, amb, moldX, base + 0.014, sz * (hc - 0.13));                                        // 무드등
       }
       const nc = P.cabin.length, fS = P.cabin[nc - 2], fC = P.cabin[nc - 1].c, rS = P.cabin[0], rC = P.cabin[1].c, rt = suv ? [0.08, 0.6] : [0.1, 0.9];
       const fp = [0.9, 0.63, 0.37, 0.1].map(t => bz(fS, fC, t)), rp = [0, 1, 2, 3].map(i => bz(rS, rC, rt[0] + (rt[1] - rt[0]) * i / 3));
-      for (let i = 0; i < 3; i++) { quad(g, fp[i], fp[i + 1], hc * 2 - 0.1, gx, BEVC + 0.004, 1.03); quad(g, rp[i], rp[i + 1], hc * 2 - 0.1, gx, BEVC + 0.004, 1.03); }   // 앞·뒤 유리(곡면을 세 장으로)
-      const xF = fp[3][0] + 0.03, xR = rp[3][0] - 0.03; b(xF - xR, 0.05, hc * 2 - 0.06, paint, (xF + xR) / 2, roofY - 0.037, 0, { cast: true });   // 지붕
+      for (let i = 0; i < 3; i++) { const tw = y => hc * 2 - 0.1 - 2 * Math.sin(TH) * Math.max(0, y - sill); quad(g, fp[i], fp[i + 1], tw((fp[i][1] + fp[i + 1][1]) / 2), gx, BEVC + 0.004, 1.03); quad(g, rp[i], rp[i + 1], tw((rp[i][1] + rp[i + 1][1]) / 2), gx, BEVC + 0.004, 1.03); }   // 앞·뒤 유리(곡면을 세 장으로)
+      const xF = fp[3][0] + 0.03, xR = rp[3][0] - 0.03; b(xF - xR, 0.05, hc * 2 - 0.06 - 2 * Math.sin(TH) * (roofY - sill) + 0.03, paint, (xF + xR) / 2, roofY - 0.037, 0, { cast: true });   // 지붕
       const fx0 = fp[0][0], x0 = P.glass[0][0] - 0.12; b(fx0 - x0, 0.04, hc * 2 - 0.16, trim, (fx0 + x0) / 2, base - 0.02, 0);          // 실내 바닥(문 안쪽 윗선)
       b(0.36, 0.08, hc * 2 - 0.14, trim, fx0 - 0.3, base + 0.01, 0); b(0.3, 0.02, hc * 2 - 0.2, leather, fx0 - 0.3, base + 0.056, 0);   // 계기판(가죽 덮개)
       for (const sz of [-1, 1]) b(0.03, 0.012, hc * 0.72, darkPl, fx0 + 0.02, fp[0][1] + BEVC + 0.02, sz * hc * 0.4).rotation.y = sz * 0.1;   // 와이퍼
@@ -173,7 +177,7 @@ export function buildOutdoor(ctx) {
       if (sport) { b(0.2, 0.035, P.W * 0.6, darkPl, FX - 0.04, P.lower[0][1] + 0.015, 0); for (const k of [-0.36, -0.12, 0.12, 0.36]) b(0.16, 0.11, 0.02, darkPl, RX + 0.04, P.lower[0][1] + 0.08, k * P.W * 0.6);   // 앞 스플리터·뒤 디퓨저 날개
         for (const sz of [-1, 1]) { const tb = plane(g, 0.085, 0.085, basic(emblemTex(brand)), -1.37, 1.0, sz * (hc + 0.006)); if (sz < 0) tb.rotation.y = Math.PI; } }   // C 필러 삼지창
       else b(0.05, 0.022, P.W * 0.46, chrome, FX - 0.02, P.lower[0][1] + 0.07, 0);
-      if (suv) { b(0.34, 0.07, hc * 2 - 0.04, paint, xR + 0.02, roofY - 0.06, 0); b(0.03, 0.22, P.W + 0.012, chrome, P.wx[1] - 0.66, P.belt - 0.34, 0); b(0.02, 0.012, hc * 0.7, darkPl, rp[1][0] - 0.07, rp[1][1] + 0.02, 0.1); }   // 루프 스포일러·에어 브리더·뒤 와이퍼
+      if (suv) { b(0.34, 0.07, hc * 2 - 0.04 - 2 * Math.sin(TH) * (roofY - sill), paint, xR + 0.02, roofY - 0.06, 0); b(0.03, 0.22, P.W + 0.012, chrome, P.wx[1] - 0.66, P.belt - 0.34, 0); b(0.02, 0.012, hc * 0.7, darkPl, rp[1][0] - 0.07, rp[1][1] + 0.02, 0.1); }   // 루프 스포일러·에어 브리더·뒤 와이퍼
       if (brand === 'volvo') for (const sz of [-1, 1]) b(0.04, 0.06, 0.26, chrome, RX + 0.012, P.lower[0][1] + 0.12, sz * P.W * 0.3);   // 범퍼 일체형 배기구
       const ug = new THREE.Mesh(new THREE.PlaneGeometry(P.L + 1.6, P.W + 1.8), new THREE.MeshBasicMaterial({ map: radialTex, color: acc, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); ug.rotation.x = -Math.PI / 2; ug.position.y = 0.03; g.add(ug);   // 바닥 조명
     }
@@ -181,12 +185,13 @@ export function buildOutdoor(ctx) {
     b(P.L * 0.66, 0.1, P.W + 0.016, darkPl, 0, P.lower[0][1] + 0.02, 0);                                                                 // 사이드 스커트
     for (const x of P.doors) b(0.014, P.belt - P.lower[0][1] - 0.16, P.W + 0.012, darkPl, x, (P.belt + P.lower[0][1]) / 2 + 0.04, 0);   // 문 틈
     for (const x of P.doors.slice(1)) { if (brand === 'maserati' || brand === 'mercedes') b(0.2, 0.034, P.W + 0.006, darkPl, x + 0.2, P.belt - 0.1, 0); else b(0.17, 0.03, P.W + 0.03, chrome, x + 0.2, P.belt - 0.1, 0); }   // 손잡이(마세라티·벤츠는 매립형)                                       // 손잡이
-    for (const sz of [-1, 1]) { b(0.17, 0.1, 0.2, paint, P.ws[0][0] - 0.18, P.belt + 0.14, sz * (hc + 0.15)); b(0.05, 0.05, 0.14, darkPl, P.ws[0][0] - 0.18, P.belt + 0.07, sz * (hc + 0.06)); }   // 사이드미러
+    for (const sz of [-1, 1]) { { const mr = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), paint); mr.scale.set(0.95, 0.6, 1.05); mr.position.set(P.ws[0][0] - 0.18, P.belt + 0.14, sz * (hc + 0.15)); g.add(mr); } b(0.05, 0.05, 0.14, darkPl, P.ws[0][0] - 0.18, P.belt + 0.07, sz * (hc + 0.06)); }   // 사이드미러
     const fin = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 8), darkPl); fin.position.set(P.rw[1][0] + 0.25, P.top + BEVC + 0.07, 0); fin.rotation.z = -0.5; g.add(fin);
     // 바퀴: 타이어·림·스포크·캘리퍼, 펜더 플레어
     const wheels = [], RR = ex ? 0.79 : 0.73;
     for (const wx of P.wx) for (const sz of [-1, 1]) { const hold = new THREE.Group(); hold.position.set(wx, P.r, sz * (P.W / 2 - 0.12)); g.add(hold); const w = new THREE.Group(); hold.add(w); wheels.push(w);
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(P.r, P.r, 0.26, 28), tire); t.rotation.x = Math.PI / 2; w.add(t);
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(P.r, P.r, 0.17, 32), tire); t.rotation.x = Math.PI / 2; w.add(t);
+      for (const k of [-1, 1]) { const sh = new THREE.Mesh(new THREE.TorusGeometry(P.r - 0.045, 0.045, 10, 32), tire); sh.position.z = k * 0.085; w.add(sh); const wall = new THREE.Mesh(new THREE.CylinderGeometry(P.r - 0.04, P.r - 0.04, 0.005, 32), tire); wall.rotation.x = Math.PI / 2; wall.position.z = k * 0.128; w.add(wall); }   // 둥근 어깨 + 옆벽
       const rim = new THREE.Mesh(new THREE.CylinderGeometry(P.r * RR, P.r * RR, 0.262, 24), darkPl); rim.rotation.x = Math.PI / 2; w.add(rim);
       if (!ex) for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(P.r * 1.32, 0.055, 0.27), rimM); sp.rotation.z = i * Math.PI / 5; w.add(sp); }
       else { const R = P.r * RR, spk = (a, r0, len, wd, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(len, wd, 0.268), mat); m.position.set(Math.cos(a) * (r0 + len / 2), Math.sin(a) * (r0 + len / 2), 0); m.rotation.z = a; w.add(m); };
