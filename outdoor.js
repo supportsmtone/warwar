@@ -429,6 +429,31 @@ export function buildOutdoor(ctx) {
   const csign = textPlane(cafeRoof, `${cfg.building.name} CAFÉ`, { h: 0.95, px: 150, color: '#ffb25c', glow: true, boost: 1.5, weight: 900, x: ccx + 0.5, y: CAF.h + 0.95, z: CAF.z1 + 0.2 });
   const cupIcon = canvasTex(128, 128, (g, w) => { g.clearRect(0, 0, w, w); g.strokeStyle = '#ffb25c'; g.lineWidth = 9; g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); g.moveTo(30, 46); g.lineTo(38, 110); g.lineTo(82, 110); g.lineTo(90, 46); g.closePath(); g.stroke(); g.beginPath(); g.arc(96, 70, 16, -1.2, 1.2); g.stroke(); for (const x of [46, 60, 74]) { g.beginPath(); g.moveTo(x, 32); g.quadraticCurveTo(x + 8, 22, x, 10); g.stroke(); } });
   plane(cafeRoof, 0.95, 0.95, new THREE.MeshBasicMaterial({ map: cupIcon, transparent: true, toneMapped: false }), ccx + 0.5 - csign.userData.w / 2 - 0.7, CAF.h + 0.95, CAF.z1 + 0.2).material.color.multiplyScalar(1.5);
+  // ---------- 카페 위 2층 직원 식당(2026-11-27 대표 지시로 신설) ----------
+  // 카페 지붕 묶음(cafeRoof)에 넣는다 — 1층 · 카페 집중 보기에서는 지붕과 함께 걷힌다. 사람 동선은 없다(건물만).
+  {
+    const dy = CAF.h + 0.3, dh = 3.2, mint = new THREE.Color(0x8fe3c8), G = cafeRoof;
+    plane(G, cw, cd, std(0xe9e2d2, { rough: 0.8 }), ccx, dy + 0.012, ccz, { rx: -Math.PI / 2, recv: true });
+    plane(G, cw, dh, std(0x1d2a2a, { rough: 0.9 }), ccx, dy + dh / 2, CAF.z0 + 0.01, { recv: true }); box(G, cw + 0.4, dh, 0.25, 0x0d0b1e, ccx, dy + dh / 2, CAF.z0 - 0.14, { cast: false });
+    plane(G, cw, dh, cglass, ccx, dy + dh / 2, CAF.z1); plane(G, cd, dh, cglass, CAF.x1, dy + dh / 2, ccz, { ry: Math.PI / 2 });
+    for (const [x, z] of [[CAF.x1, CAF.z1], [CAF.x1, CAF.z0], [ccx, CAF.z1], [CAF.x0 + 0.1, CAF.z1]]) box(G, 0.12, dh, 0.12, cframe, x, dy + dh / 2, z, { cast: false });
+    box(G, cw, 0.07, 0.07, glow(mint, 1.7), ccx, dy + dh - 0.25, CAF.z0 + 0.05, { cast: false });
+    // 배식대(뒷벽 쪽): 받침 + 상판 + 반찬 통 6칸 + 유리 가림막 + 쟁반 더미
+    box(G, 6.4, 0.95, 0.9, 0x2c3a3a, ccx + 0.6, dy + 0.48, CAF.z0 + 1.0); box(G, 6.5, 0.07, 1.0, 0xf1e3cc, ccx + 0.6, dy + 0.98, CAF.z0 + 1.0);
+    for (let i = 0; i < 6; i++) box(G, 0.7, 0.1, 0.5, std([0xf2f2ec, 0xd9532b, 0x6fae4a, 0xe9b949, 0x8b5a2b, 0xf7d9a8][i], { rough: 0.8 }), ccx - 1.75 + i * 0.94, dy + 1.06, CAF.z0 + 1.0, { cast: false });
+    box(G, 6.4, 0.5, 0.04, new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, roughness: 0.05, depthWrite: false }), ccx + 0.6, dy + 1.4, CAF.z0 + 1.45, { cast: false });
+    for (let i = 0; i < 5; i++) box(G, 0.5, 0.03, 0.36, std(0xc9ced6, { metal: 0.6, rough: 0.35 }), CAF.x0 + 0.9, dy + 1.03 + i * 0.035, CAF.z0 + 1.0, { cast: false });
+    // 긴 식탁 3줄 + 양쪽 긴 의자 + 식판
+    for (const z of [-1.0, 1.4, 3.8]) {
+      box(G, 6.2, 0.07, 0.9, 0xf1e3cc, ccx + 0.3, dy + 0.74, z); for (const k of [-1, 1]) { box(G, 0.08, 0.72, 0.7, metalMat, ccx + 0.3 + k * 2.8, dy + 0.37, z, { cast: false }); box(G, 6.0, 0.06, 0.34, std(0xc2703a, { rough: 0.9 }), ccx + 0.3, dy + 0.44, z + k * 0.72); }
+      for (let i = 0; i < 4; i++) box(G, 0.46, 0.025, 0.32, std(0xdfe4ea, { metal: 0.5, rough: 0.4 }), ccx - 1.9 + i * 1.5, dy + 0.79, z + (i % 2 ? 0.2 : -0.2), { cast: false });
+    }
+    for (const [x, z] of [[ccx - 2.0, 0.2], [ccx + 2.4, 0.2], [ccx - 2.0, 3.0], [ccx + 2.4, 3.0], [ccx + 0.6, CAF.z0 + 1.2]]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), glow(0xeafff6, 1.5)); l.position.set(x, dy + 2.55, z); G.add(l); box(G, 0.02, 0.5, 0.02, darkPl, x, dy + 2.9, z, { cast: false }); }
+    // 지붕 · 간판
+    box(G, cw + 0.8, 0.3, cd + 0.8, std(0x15132a, { rough: 0.7 }), ccx, dy + dh + 0.15, ccz, { cast: false }); box(G, cw + 0.8, 0.08, 0.08, glow(mint, 2.0), ccx, dy + dh + 0.04, CAF.z1 + 0.42, { cast: false });
+    textPlane(G, '직원 식당 2F', { h: 0.8, px: 140, color: '#8fe3c8', glow: true, boost: 1.5, weight: 900, x: ccx + 0.3, y: dy + dh + 0.85, z: CAF.z1 + 0.2 });
+    textPlane(G, '오늘의 메뉴', { h: 0.3, px: 72, color: '#eafff6', glow: true, boost: 1.2, weight: 800, x: ccx + 0.6, y: dy + 2.35, z: CAF.z0 + 0.06 });
+  }
   const cafeHit = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.6, CAF.h + 1.8, cd + 0.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); cafeHit.position.set(ccx, (CAF.h + 1.8) / 2, ccz); scene.add(cafeHit);   // 누르면 카페 안으로
   const cafeSpots = [0, 1, 2, 3, 4].map(i => ({ x: 18.6 + i * 1.0, z: -2.3, user: null }));
   // 음료 컵(책상 위·들고 걷기): hot 종이컵, ice 아메리카노, ade 딸기 에이드, matcha 말차, juice 오렌지 주스
