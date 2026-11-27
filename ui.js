@@ -35,9 +35,10 @@
   const STATE_KO = { working: '근무 중', directing: '지휘 중', waiting: '대기', blocked: '막힘', 'stale-work': '멈춤 의심', lounge: '휴게 중', gym: '운동 중', present: '재석', out: '외근 중', heli: '긴급 외근' };
   const HQ_CO = { name: '', color: '#FFD23F', color2: '#FFE9A6' };   // 대표(특정 회사 소속 아님)
   const flabel = f => f.label || f.n + 'F';
-  const fkey = f => f.lot ? -1 : f.cafe ? 0.5 : f.n;   // 레일 순서: 옥상 → 5~1층 → 카페 → 주차장
+  const fkey = f => f.lot ? -1 : f.cafe ? 0.5 : f.dine ? 0.7 : f.n;   // 레일 순서: 옥상 → 5~1층 → 카페 → 주차장
   const DRINK_KO = { hot: '따뜻한 커피', ice: '아이스 아메리카노', ade: '에이드', matcha: '말차 라떼', juice: '과일 주스' };
   const cafeHere = () => HQ.staff.filter(s => HQ.cafeNow && HQ.cafeNow[s.id]);
+  const dineHere = () => HQ.staff.filter(s => HQ.dineNow && HQ.dineNow[s.id] && HQ.dineNow[s.id] !== 'back');   // 직원 식당에 가는 중 · 식사 중(2026-11-27)
   function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function ago(iso) {
     if (!iso) return '';
@@ -191,9 +192,9 @@
   function renderRail() {
     const fl = HQ.cfg.floors.slice().sort((a, b) => fkey(a) < fkey(b) ? 1 : -1);
     $('#rail').innerHTML = `<button class="${HQ.mode.floor == null ? 'on' : ''}" data-floor="" title="건물 전체"><b>전체</b></button>` + fl.map(f => {
-      const here = f.cafe ? cafeHere() : HQ.staff.filter(s => statOf(s.id).floorNow === f.n); const busy = here.filter(s => statOf(s.id).busy).length;
+      const here = f.cafe ? cafeHere() : f.dine ? dineHere() : HQ.staff.filter(s => statOf(s.id).floorNow === f.n); const busy = here.filter(s => statOf(s.id).busy).length;
       const ag = here.filter(s => !s.human);
-      return `<button class="${HQ.mode.floor === f.n ? 'on' : ''}" data-floor="${f.n}" style="--c:${f.color}" title="${esc(f.title)}"><b>${flabel(f)}</b><span>${f.cafe ? here.length + '명' : f.lot ? '외근 ' + here.length : f.roof ? '대표' : f.n === 1 ? here.length + '명' : busy + '/' + ag.length}</span></button>`;
+      return `<button class="${HQ.mode.floor === f.n ? 'on' : ''}" data-floor="${f.n}" style="--c:${f.color}" title="${esc(f.title)}"><b>${flabel(f)}</b><span>${f.cafe || f.dine ? here.length + '명' : f.lot ? '외근 ' + here.length : f.roof ? '대표' : f.n === 1 ? here.length + '명' : busy + '/' + ag.length}</span></button>`;
     }).join('');
     document.querySelectorAll('#rail button').forEach(b => b.onclick = () => HQ.focusFloor(b.dataset.floor ? Number(b.dataset.floor) : null));
   }
@@ -210,11 +211,11 @@
         <h4>층 안내</h4><ul class="floors">${HQ.cfg.floors.slice().sort((a, b) => fkey(a) < fkey(b) ? 1 : -1).map(f => `<li data-floor="${f.n}" style="--c:${f.color}"><b>${flabel(f)}</b><span>${esc(f.title)}</span></li>`).join('')}</ul>`;
     } else {
       const f = HQ.cfg.floors.find(x => x.n === n), c = f.company ? companyOf(f.company) : null;
-      const here = f.cafe ? cafeHere() : HQ.staff.filter(s => statOf(s.id).floorNow === n);
-      const away = f.lot || f.cafe ? [] : HQ.staff.filter(s => s.floor === n && statOf(s.id).floorNow !== n);
+      const here = f.cafe ? cafeHere() : f.dine ? dineHere() : HQ.staff.filter(s => statOf(s.id).floorNow === n);
+      const away = f.lot || f.cafe || f.dine ? [] : HQ.staff.filter(s => s.floor === n && statOf(s.id).floorNow !== n);
       const busy = here.filter(s => statOf(s.id).busy).length, agents = here.concat(away).filter(s => !s.human).length;
-      $('#panel-head').innerHTML = `<button id="back" title="건물 전체로">←</button><div style="--c:${f.color}"><h2><span class="fbadge">${flabel(f)}</span> ${esc(f.title)}</h2><p>${f.cafe ? `${esc(HQ.cfg.building.name)} 전용 카페 · 이용 중 ${here.length}명` : f.lot ? `외근 ${here.length}명 · 차량 ${3 + ((HQ.cfg.vehicles && HQ.cfg.vehicles.pool.count) || 10)}대 · 헬기 1대` : f.roof ? `${esc(HQ.cfg.building.name)} · 3개 회사 대표` : n === 1 ? `운동 중 ${here.length}명` : `근무 ${busy} / ${agents}명`}${c ? ' · ' + esc(c.tagline) : ''}</p></div>`;
-      let html = `${f.company ? metricsLine(f.company) : ''}<ul class="staff">${here.map(s => staffRow(s)).join('') || `<li class="empty">${f.cafe ? '지금 카페에 온 사람이 없습니다. 자리에서 일하던 담당자가 수시로 음료를 사러 옵니다.' : f.lot ? '지금 외근 중인 사람이 없습니다.' : n === 1 ? '지금 운동 중인 사람이 없습니다. 30분 넘게 쉬는 담당자가 내려옵니다.' : '이 층에 있는 담당자가 없습니다.'}</li>`}</ul>`;
+      $('#panel-head').innerHTML = `<button id="back" title="건물 전체로">←</button><div style="--c:${f.color}"><h2><span class="fbadge">${flabel(f)}</span> ${esc(f.title)}</h2><p>${f.dine ? `카페 위 2층 · 식사 ${here.length}명 · 점심 12:00~13:00` : f.cafe ? `${esc(HQ.cfg.building.name)} 전용 카페 · 이용 중 ${here.length}명` : f.lot ? `외근 ${here.length}명 · 차량 ${3 + ((HQ.cfg.vehicles && HQ.cfg.vehicles.pool.count) || 10)}대 · 헬기 1대` : f.roof ? `${esc(HQ.cfg.building.name)} · 3개 회사 대표` : n === 1 ? `운동 중 ${here.length}명` : `근무 ${busy} / ${agents}명`}${c ? ' · ' + esc(c.tagline) : ''}</p></div>`;
+      let html = `${f.company ? metricsLine(f.company) : ''}<ul class="staff">${here.map(s => staffRow(s)).join('') || `<li class="empty">${f.dine ? '지금 식당에 온 사람이 없습니다. 점심시간(12:00~13:00)에 자리에서 일하던 담당자가 차례로 식사하러 옵니다.' : f.cafe ? '지금 카페에 온 사람이 없습니다. 자리에서 일하던 담당자가 수시로 음료를 사러 옵니다.' : f.lot ? '지금 외근 중인 사람이 없습니다.' : n === 1 ? '지금 운동 중인 사람이 없습니다. 30분 넘게 쉬는 담당자가 내려옵니다.' : '이 층에 있는 담당자가 없습니다.'}</li>`}</ul>`;
       if (f.lot) { const ex = HQ.staff.filter(s => s.human), vs = (HQ.cfg.vehicles && HQ.cfg.vehicles.exec) || [];
         html += `<h4>임원 차량 · 외근 명령</h4><ul class="staff">${ex.filter(s => !here.includes(s)).map(s => staffRow(s)).join('') || '<li class="empty">임원 전원 외근 중</li>'}</ul><h4>전용 주차</h4><ul class="cars">${vs.map(v => `<li data-car="${esc(v.owner)}">${v.image ? `<img src="${esc(v.image)}" alt="" loading="lazy">` : '<i></i>'}<div><b>${esc(v.model)}</b><span>${esc((HQ.byId[v.owner] || {}).name || '')} ${esc((HQ.byId[v.owner] || {}).title || '')} · ${esc(v.colorName || '')}</span><span>${esc(v.plate || '')}</span></div></li>`).join('')}</ul><ul class="plain"><li><span class="t">${esc(HQ.cfg.vehicles.pool.model)} × ${HQ.cfg.vehicles.pool.count}</span>업무용 차량 — 쉬는 직원이 수시로 사용</li><li><span class="t">HELICOPTER</span>써포츠 헬기 — 옥상, 긴급 외근</li></ul><p class="hintp">임원은 2시간마다 한 번 외근을 나갑니다. 「외근」「긴급」 버튼이나 도구 명령으로 바로 보낼 수 있습니다.</p>`; }
       if (f.cafe) { const dr = HQ.staff.filter(s => HQ.drinks && HQ.drinks[s.id]);

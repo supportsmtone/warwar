@@ -20,10 +20,11 @@ const FONT = 'Pretendard, "Apple SD Gothic Neo", sans-serif';
 const W = 30, D = 14, FH = 5, CEIL = 4.5, HX = W / 2, HZ = D / 2;
 const floorY = n => (n - 1) * FH;
 const FLOORS = Object.fromEntries(cfg.floors.map(f => [f.n, f]));
-const NS = cfg.floors.filter(f => !f.roof && !f.lot && !f.cafe).map(f => f.n).sort((a, b) => a - b);   // 건물 층(옥상 대표실 제외)
+const NS = cfg.floors.filter(f => !f.roof && !f.lot && !f.cafe && !f.dine).map(f => f.n).sort((a, b) => a - b);   // 건물 층(옥상 대표실 제외)
 const RN = (cfg.floors.find(f => f.roof) || {}).n || 0;                          // 옥상 대표실 번호(없으면 0)
 const flabel = n => (FLOORS[n] && FLOORS[n].label) || n + 'F';
 const CAFN = (cfg.floors.find(f => f.cafe) || {}).n || -2;                        // 카페 보기 번호
+const DINN = (cfg.floors.find(f => f.dine) || {}).n || -3;                        // 직원 식당 보기 번호(2026-11-27)
 const LOTN = (cfg.floors.find(f => f.lot) || {}).n || -1;                         // 주차장 보기 번호
 const AISLE = { 0: LOT.SIDE_Z, 1: -4.2, 2: 0.1, 3: 0.1, 4: 0.1, 5: 0.1, 6: 2.4 };   // 층별 통로(0 = 바깥 보도)
 const ELEV = { x: 3.5, z: -6.0 };
@@ -447,7 +448,7 @@ function mergeStatic(container, skip = [], keep = []) {
 }
 for (const n of NS) { const f = F[n]; mergeStatic(f.shell); mergeStatic(f.ceil); mergeStatic(f.g, [f.shell, f.ceil, shuttle].filter(Boolean), [f.doorL, f.doorR, f.hit, f.leds[0]].filter(Boolean)); }
 mergeStatic(pavRoof); mergeStatic(roof, [pavRoof, outdoor.heli.g], [pavHit].filter(Boolean));
-mergeStatic(outdoor.groups.cafeRoof); mergeStatic(outdoor.groups.cafe, [outdoor.groups.cafeRoof]); mergeStatic(outdoor.groups.lot);
+mergeStatic(outdoor.dineRoof); mergeStatic(outdoor.groups.cafeRoof, [outdoor.dineRoof]); mergeStatic(outdoor.groups.cafe, [outdoor.groups.cafeRoof]); mergeStatic(outdoor.groups.lot);
 for (const c of outdoor.cars) { for (const w of c.wheels) mergeStatic(w); mergeStatic(c.g, c.wheels, [c.hit, c.beam]); }   // 차 한 대를 재질별 몇 덩어리로
 { const h = outdoor.heli; for (const sp of h.spinners) mergeStatic(sp); mergeStatic(h.g, h.spinners, [h.hit]); }
 // 움직이지 않는 물체는 위치 계산을 한 번만 한다(매 프레임 수천 개를 다시 계산하지 않게)
@@ -598,7 +599,7 @@ class Person {
     this.ring.material.opacity += ((active ? 0.5 + 0.3 * Math.sin(now / 280) : 0) - this.ring.material.opacity) * 0.12;
     if (this.cup) this.cup.visible = !!this.drink && this.pose === 'seat' && this.sipT <= 0 && !this.away;
     if (this.carry) { const on = vis && this.pose === 'walk' && !!this.errand && this.errand.stage === 'back' && !this.errand.dine; this.carry.visible = on; if (on) this.carry.position.set(this.pos.x + this.dir * 0.3, y0 + 0.93 + bob, this.pos.z + 0.03); }
-    const showLabel = vis && (mode.floor === this.floor || (mode.floor === LOTN && this.floor === 0) || (mode.floor === CAFN && this.floor === 1 && this.pos.x > 14.6));
+    const showLabel = vis && (mode.floor === this.floor || (mode.floor === LOTN && this.floor === 0) || (mode.floor === CAFN && this.floor === 1 && this.pos.x > 14.6) || (mode.floor === DINN && this.floor === 2 && this.pos.x > 15.2));
     this.label.visible = showLabel; if (showLabel) this.label.position.set(this.pos.x, y0 + (this.pose === 'seat' ? 1.78 : 2.02) + bob + lift, this.pos.z);
     const ak = st.flag || (this.id === 'hq:ceo' && HQ.attn > 0 ? 'attn:' + HQ.attn : '');
     if (ak !== this.alertKind) { this.alertKind = ak; if (ak) { this.alert.material.map = alertTex(ak); this.alert.material.needsUpdate = true; } }
@@ -637,7 +638,7 @@ function outAnchor(v, kind) {
   if (kind === 'heli') return { key: 'heli', floor: RN, pts: [{ x: 4.4, z: AISLE[RN] }, { x: 4.4, z: v.door.z }, { x: v.door.x, z: v.door.z }], pose: 'idle', vehicle: v };
   return { key: 'out@' + v.bx, floor: 0, pts: [{ x: v.door.x, z: AISLE[0] }, { x: v.door.x, z: v.door.z }], pose: 'idle', vehicle: v };
 }
-outdoor.cafeHit.userData.floor = CAFN;
+outdoor.cafeHit.userData.floor = CAFN; outdoor.dineHit.userData.floor = DINN;
 for (const s of HQ.staff) people[s.id] = new Person(s);
 function cancelBoard(p) { if (!p.board) return; p.board = null; p.fade = 1; p.destKey = ''; p.setPose('idle'); }
 function applyOne(s) {
@@ -725,13 +726,13 @@ function setDrink(p, kind) {
 // 확인용: 주소에 ?lunch=1 을 붙이면 지금을 점심시간으로 보고 60배 빠르게 돈다.
 const LUNCH_TEST = typeof location !== 'undefined' && /[?&]lunch=1/.test(location.search || '');
 const LUNCH = { force: LUNCH_TEST, speed: LUNCH_TEST ? 1 / 60 : 1, max: 8, day: '', done: {}, t0: 0 };
-let dineAt = 0;
+let dineAt = 0, dineKey = '';
 function dineTick(now) {
   if (now - dineAt < 1000) return; dineAt = now;
   const d = new Date(), day = d.toDateString(), mins = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
   if (day !== LUNCH.day) { LUNCH.day = day; LUNCH.done = {}; LUNCH.t0 = now; }
   const open = LUNCH.force || (mins >= 720 && mins < 780), since = LUNCH.force ? (now - LUNCH.t0) / 60000 / LUNCH.speed : mins - 720;
-  { const dn = {}; for (const s of HQ.staff) { const e = people[s.id].errand; if (e && e.dine) dn[s.id] = e.stage; } HQ.dineNow = dn; }   // 식당 이용 현황(go · eat · back)
+  { const dn = {}; for (const s of HQ.staff) { const e = people[s.id].errand; if (e && e.dine) dn[s.id] = e.stage; } const k = JSON.stringify(dn); if (k !== dineKey) { dineKey = k; HQ.dineNow = dn; if (mode.floor === DINN || mode.floor == null) HQ.refresh && HQ.refresh(); } }   // 식당 이용 현황(go · eat · back)
   for (const s of HQ.staff) { const p = people[s.id], e = p.errand;
     if (e && e.dine) { if (e.stage === 'eat' && now > e.until) { e.slot.user = null; e.stage = 'back'; p.go(deskAnchor(s)); } continue; }
     if (!open || e || LUNCH.done[s.id] || p.pose !== 'seat' || p.away || p.route.length || !p.stat || p.stat.place !== 'desk' || !deskOf[s.id]) continue;
@@ -807,6 +808,7 @@ function camFor(n) {
   let tgt, pos, need;
   if (n == null) { const top = floorY(NS.length + 1) + 5.5; tgt = new THREE.Vector3(1.4, top / 2 - 2.6, 3); pos = new THREE.Vector3(19, top / 2 + 7.5, 64); need = Math.max(25.5 / (tan * v.fw), (top / 2 + 3.2) / (tan * v.fh)); }
   else if (n === LOTN) { tgt = new THREE.Vector3(-5, 0.4, 16.5); pos = new THREE.Vector3(-1, 17, 46); need = Math.max(27 / (tan * v.fw), 12 / (tan * v.fh)); }
+  else if (n === DINN) { const C = outdoor.CAF, cx = (C.x0 + C.x1) / 2, y = outdoor.DIN.y; tgt = new THREE.Vector3(cx, y + 0.9, 0.2); pos = new THREE.Vector3(cx + 0.6, y + 11.5, 15.2); need = Math.max(6.9 / (tan * v.fw), 6.6 / (tan * v.fh)); }   // 직원 식당 안
   else if (n === CAFN) { const C = outdoor.CAF, cx = (C.x0 + C.x1) / 2; tgt = new THREE.Vector3(cx, 0.9, 0.2); pos = new THREE.Vector3(cx + 0.6, 11.5, 15.2); need = Math.max(6.9 / (tan * v.fw), 6.6 / (tan * v.fh)); }   // 카페 안
   else if (n === RN) { const y = floorY(n); tgt = new THREE.Vector3(-1.5, y + 1.2, -0.3); pos = new THREE.Vector3(0.5, y + 10.5, 17); need = Math.max(14.5 / (tan * v.fw), 7.5 / (tan * v.fh)); }
   else if (n === 1) { tgt = new THREE.Vector3(4.6, 0.6, -0.9); pos = new THREE.Vector3(4.8, 17.5, 20.5); need = Math.max(20.6 / (tan * v.fw), 9.8 / (tan * v.fh)); }   // 1층은 오른쪽 카페까지
@@ -815,12 +817,12 @@ function camFor(n) {
 }
 function goCam(c, dur = 1100) { camTween = { from: camera.position.clone(), to: c.pos, tf: controls.target.clone(), tt: c.tgt, t0: performance.now(), dur }; }
 function setMode(n, instant) {
-  mode.floor = n; const inside = n != null && n !== LOTN && n !== RN && n !== CAFN;
+  mode.floor = n; const inside = n != null && n !== LOTN && n !== RN && n !== CAFN && n !== DINN;
   for (const m of NS) { const f = F[m]; f.liftT = inside && m > n ? 46 : 0; f.shell.visible = n !== m; f.ceil.visible = n !== m; }
-  roofS.liftT = inside ? 46 : 0; totem.visible = n == null || n === LOTN; pavRoof.visible = n !== RN; outdoor.setLabels(n === LOTN); outdoor.cafeRoof.visible = n !== 1 && n !== CAFN; shadowDirty = 60;
+  roofS.liftT = inside ? 46 : 0; totem.visible = n == null || n === LOTN; pavRoof.visible = n !== RN; outdoor.setLabels(n === LOTN); outdoor.cafeRoof.visible = n !== 1 && n !== CAFN; outdoor.dineRoof.visible = n !== DINN; shadowDirty = 60;
   controls.maxPolarAngle = n == null ? 1.53 : n === LOTN ? 1.5 : 1.36; controls.minDistance = n == null ? 7 : 2.4; controls.maxDistance = n == null ? 240 : 160;
   hoverFloor = null; drawTotem(); renderer.domElement.style.cursor = '';
-  if (n === CAFN) { focusLight.position.set(20, 8.5, 5); focusLight.intensity = 9; } else if (n === RN && RN) { focusLight.position.set(-2, floorY(n) + 8, 6); focusLight.intensity = 10; } else if (inside) { focusLight.position.set(-1, floorY(n) + 9, 6); focusLight.intensity = 14; } else focusLight.intensity = 0;
+  if (n === CAFN) { focusLight.position.set(20, 8.5, 5); focusLight.intensity = 9; } else if (n === DINN) { focusLight.position.set(20, 13.5, 5); focusLight.intensity = 9; } else if (n === RN && RN) { focusLight.position.set(-2, floorY(n) + 8, 6); focusLight.intensity = 10; } else if (inside) { focusLight.position.set(-1, floorY(n) + 9, 6); focusLight.intensity = 14; } else focusLight.intensity = 0;
   goCam(camFor(n), instant ? 0 : 1100);
 }
 function focusPerson(id) {
@@ -841,15 +843,16 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 function pick(e) {
   const r = renderer.domElement.getBoundingClientRect(); mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(mouse, camera);
   if (mode.floor == null || mode.floor === LOTN || mode.floor === RN) { const vh = ray.intersectObjects(outdoor.hits.filter(h => h.userData.car ? h.userData.car.g.visible : (roof.visible && outdoor.heli.g.visible && mode.floor !== LOTN)), false)[0]; if (vh) return { veh: vh.object.userData.car || vh.object.userData.heli }; }
-  if (mode.floor == null) { const hit = ray.intersectObjects([...(pavHit ? [pavHit] : []), outdoor.cafeHit, ...NS.map(n => F[n].hit), ...NS.map(n => totemSeg[n].mesh)], false)[0]; return hit ? { floor: hit.object.userData.floor } : null; }
-  const onFloor = p => p.sp.visible && (p.floor === mode.floor || (mode.floor === LOTN && p.floor === 0) || (mode.floor === CAFN && p.floor === 1 && p.pos.x > 14.6));
+  if (mode.floor == null) { const hit = ray.intersectObjects([...(pavHit ? [pavHit] : []), outdoor.dineHit, outdoor.cafeHit, ...NS.map(n => F[n].hit), ...NS.map(n => totemSeg[n].mesh)], false)[0]; return hit ? { floor: hit.object.userData.floor } : null; }
+  const onFloor = p => p.sp.visible && (p.floor === mode.floor || (mode.floor === LOTN && p.floor === 0) || (mode.floor === CAFN && p.floor === 1 && p.pos.x > 14.6) || (mode.floor === DINN && p.floor === 2 && p.pos.x > 15.2));
   const hit = ray.intersectObjects(HQ.staff.map(s => people[s.id]).filter(onFloor).map(p => p.sp), false)[0]; if (hit) return { id: hit.object.userData.id };
+  if (mode.floor === 1 || mode.floor === LOTN || mode.floor === CAFN || mode.floor === 2) { const dh = ray.intersectObject(outdoor.dineHit, false)[0]; if (dh && mode.floor !== 1) return { floor: DINN }; }   // 주차장 · 카페 · 2층 보기에서 식당을 누르면 식당 안으로
   if (mode.floor === 1 || mode.floor === LOTN) { const ch = ray.intersectObject(outdoor.cafeHit, false)[0]; if (ch) return { floor: CAFN }; }   // 1층·주차장 보기에서 카페를 누르면 카페 안으로
   return null;
 }
 renderer.domElement.addEventListener('pointermove', e => {
   if (down) return; const h = pick(e); let html = '';
-  if (h && h.floor) { const fd = FLOORS[h.floor], here = HQ.staff.filter(s => HQ.stat(s.id).floorNow === h.floor), busy = here.filter(s => HQ.stat(s.id).busy).length; html = `<b>${esc(flabel(h.floor))} ${esc(fd.title)}</b><span>${h.floor === CAFN ? `이용 ${Object.keys(HQ.cafeNow || {}).length}명` : h.floor === RN ? `대표 ${esc(cfg.building.ceo || '')}` : h.floor === 1 ? `운동 ${here.length}명` : `근무 ${busy}/${here.filter(s => !s.human).length}`} · 눌러서 들어가기</span>`; }
+  if (h && h.floor) { const fd = FLOORS[h.floor], here = HQ.staff.filter(s => HQ.stat(s.id).floorNow === h.floor), busy = here.filter(s => HQ.stat(s.id).busy).length; html = `<b>${esc(flabel(h.floor))} ${esc(fd.title)}</b><span>${h.floor === DINN ? `식사 ${Object.values(HQ.dineNow || {}).filter(x => x !== 'back').length}명` : h.floor === CAFN ? `이용 ${Object.keys(HQ.cafeNow || {}).length}명` : h.floor === RN ? `대표 ${esc(cfg.building.ceo || '')}` : h.floor === 1 ? `운동 ${here.length}명` : `근무 ${busy}/${here.filter(s => !s.human).length}`} · 눌러서 들어가기</span>`; }
   if (h && h.id) { const s = HQ.byId[h.id], st = HQ.stat(h.id); html = `<b>${esc(s.name)}</b><span>${esc(KO[st.state] || st.state)}${st.note ? ' · ' + esc(st.note.slice(0, 40)) : ''}</span>`; }
   if (h && h.veh) html = `<b>${esc(h.veh.name || '')}</b><span>${h.veh.state === 'parked' ? '주차 중' : '이동 중'} · 눌러서 확대</span>`;
   const hf = h && h.floor ? h.floor : null; if (hf !== hoverFloor) { hoverFloor = hf; drawTotem(); }

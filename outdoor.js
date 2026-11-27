@@ -63,6 +63,12 @@ export function buildOutdoor(ctx) {
       cabin: [[-1.78, 0.92], { c: [-1.0, 1.24, -0.45, 1.28] }, [-0.05, 1.28], { c: [0.44, 1.24, 0.84, 0.92] }],
       glass: [[-1.26, 0.98], { c: [-0.88, 1.19, -0.45, 1.22] }, [-0.07, 1.22], { c: [0.32, 1.19, 0.58, 0.98] }],
       ws: [[0.8, 0.97], [0.0, 1.27]], rw: [[-1.72, 0.96], [-0.62, 1.27]], pillar: null, top: 1.28, fy: 0.62, ry: 0.78 },
+    // 쿠페형 SUV(2026-11-27 — 레반떼처럼 보닛이 길고 지붕이 뒤로 흘러내린다). 각진 대형 SUV(suv)와 구분.
+    suvc: { L: 5.0, W: 1.98, r: 0.42, wx: [-1.5, 1.56], belt: 1.13, cabW: 0.84, doors: [1.0, -0.12, -1.24],
+      lower: [[-2.44, 0.38], [-2.48, 0.98], { c: [-2.48, 1.15, -2.26, 1.16] }, [1.12, 1.15], { c: [1.84, 1.07, 2.24, 0.97] }, { c: [2.52, 0.9, 2.5, 0.62] }, [2.48, 0.38]],
+      cabin: [[-2.26, 1.13], { c: [-1.45, 1.63, -0.7, 1.67] }, [0.08, 1.68], { c: [0.74, 1.65, 1.26, 1.13] }],
+      glass: [[-1.9, 1.19], { c: [-1.3, 1.57, -0.7, 1.6] }, [0.06, 1.61], { c: [0.6, 1.58, 1.0, 1.19] }],
+      ws: [[1.2, 1.17], [0.2, 1.66]], rw: [[-2.18, 1.19], [-1.15, 1.61]], pillar: -0.14, top: 1.68, fy: 0.87, ry: 1.03 },
     suv: { L: 5.18, W: 2.0, r: 0.41, wx: [-1.62, 1.64], belt: 1.25, cabW: 0.86, doors: [1.12, -0.1, -1.36],
       lower: [[-2.56, 0.4], [-2.6, 1.1], { c: [-2.6, 1.27, -2.4, 1.27] }, [1.3, 1.27], { c: [1.95, 1.2, 2.32, 1.14] }, { c: [2.62, 1.08, 2.6, 0.72] }, [2.58, 0.4]],
       cabin: [[-2.52, 1.25], { c: [-2.5, 1.78, -2.2, 1.8] }, [0.3, 1.82], { c: [0.92, 1.8, 1.42, 1.25] }],
@@ -107,7 +113,7 @@ export function buildOutdoor(ctx) {
   function smooth(geo) { geo.deleteAttribute('normal'); geo.deleteAttribute('uv'); const m = mergeVertices(geo, 1e-4); m.computeVertexNormals(); m.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(m.attributes.position.count * 2), 2)); return m; }
   const starM = basic(canvasTex(128, 128, (g, w) => { const c = w / 2; g.clearRect(0, 0, w, w); g.shadowColor = '#c8101e'; g.shadowBlur = 10; g.strokeStyle = '#d81c2a'; g.lineWidth = 10; g.lineCap = 'round'; for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 3; g.beginPath(); g.moveTo(c, c); g.lineTo(c + Math.cos(a) * 44, c + Math.sin(a) * 44); g.stroke(); } }));   // 벤츠 후미등의 별 무늬
   function makeCar(spec, plate) {
-    const P = TYPES[spec.type] || TYPES.sedan, brand = spec.brand || 'mercedes', g = new THREE.Group(), col = new THREE.Color(spec.color), hc = P.W * P.cabW / 2, FX = P.L / 2 + BEV, RX = -(P.L / 2 + BEV), suv = spec.type === 'suv', sport = spec.type === 'sports';
+    const P = TYPES[spec.type] || TYPES.sedan, brand = spec.brand || 'mercedes', g = new THREE.Group(), col = new THREE.Color(spec.color), hc = P.W * P.cabW / 2, FX = P.L / 2 + BEV, RX = -(P.L / 2 + BEV), suv = spec.type === 'suv' || spec.type === 'suvc', coupe = spec.type === 'suvc', sport = spec.type === 'sports';
     const ex = !!spec.exec, lum = col.getHSL({}).l, pearl = lum > 0.85;
     const paint = new THREE.MeshPhysicalMaterial({ color: col, metalness: pearl ? 0.12 : 0.65, roughness: pearl ? 0.42 : 0.26, clearcoat: pearl ? 0.5 : 1, clearcoatRoughness: pearl ? 0.2 : 0.06, envMap: ctx.env || null, envMapIntensity: pearl ? 0.16 : lum > 0.75 ? 0.28 : 0.55 });
     const hw = P.W / 2, Lh = P.L / 2 + BEV, KF = 0.24, KR = 0.15, TP = 0.05, TH = 0.13, SILL = 0.025;   // TP(끝을 좁히기)는 쓰지 않는다 — 옆판에 중간 꼭짓점이 없어 문 쪽이 안으로 꺼진다
@@ -147,14 +153,14 @@ export function buildOutdoor(ctx) {
         b(P.L * 0.5, 0.022, 0.03, chrome, moldX, P.belt + 0.05, sz * hc);                                                              // 창 아래 크롬 몰딩
         b(Math.min(1.7, P.L * 0.32), 0.012, 0.012, amb, moldX, base + 0.014, sz * (hc - 0.13));                                        // 무드등
       }
-      const nc = P.cabin.length, fS = P.cabin[nc - 2], fC = P.cabin[nc - 1].c, rS = P.cabin[0], rC = P.cabin[1].c, rt = suv ? [0.08, 0.6] : [0.1, 0.9];
+      const nc = P.cabin.length, fS = P.cabin[nc - 2], fC = P.cabin[nc - 1].c, rS = P.cabin[0], rC = P.cabin[1].c, rt = suv && !coupe ? [0.08, 0.6] : [0.1, 0.9];
       const fp = [0.9, 0.63, 0.37, 0.1].map(t => bz(fS, fC, t)), rp = [0, 1, 2, 3].map(i => bz(rS, rC, rt[0] + (rt[1] - rt[0]) * i / 3));
       for (let i = 0; i < 3; i++) { const tw = y => hc * 2 - 0.1 - 2 * Math.sin(TH) * Math.max(0, y - sill); quad(g, fp[i], fp[i + 1], tw((fp[i][1] + fp[i + 1][1]) / 2), gx, BEVC + 0.004, 1.03); quad(g, rp[i], rp[i + 1], tw((rp[i][1] + rp[i + 1][1]) / 2), gx, BEVC + 0.004, 1.03); }   // 앞·뒤 유리(곡면을 세 장으로)
       const xF = fp[3][0] + 0.03, xR = rp[3][0] - 0.03; b(xF - xR, 0.05, hc * 2 - 0.06 - 2 * Math.sin(TH) * (roofY - sill) + 0.03, paint, (xF + xR) / 2, roofY - 0.037, 0, { cast: true });   // 지붕
       const fx0 = fp[0][0], x0 = P.glass[0][0] - 0.12; b(fx0 - x0, 0.04, hc * 2 - 0.16, trim, (fx0 + x0) / 2, base - 0.02, 0);          // 실내 바닥(문 안쪽 윗선)
       b(0.36, 0.08, hc * 2 - 0.14, trim, fx0 - 0.3, base + 0.01, 0); b(0.3, 0.02, hc * 2 - 0.2, leather, fx0 - 0.3, base + 0.056, 0);   // 계기판(가죽 덮개)
       for (const sz of [-1, 1]) b(0.03, 0.012, hc * 0.72, darkPl, fx0 + 0.02, fp[0][1] + BEVC + 0.02, sz * hc * 0.4).rotation.y = sz * 0.1;   // 와이퍼
-      const SEATS = { sedan: [[0.0, 2], [-0.86, 3]], sports: [[-0.12, 2]], suv: [[0.3, 2], [-0.72, 3], [-1.62, 2]] }[spec.type] || [[0, 2]];
+      const SEATS = { sedan: [[0.0, 2], [-0.86, 3]], sports: [[-0.12, 2]], suv: [[0.3, 2], [-0.72, 3], [-1.62, 2]], suvc: [[0.14, 2], [-0.78, 3]] }[spec.type] || [[0, 2]];
       const backH = hV * 0.62 + 0.05;
       for (const [sx, n] of SEATS) { const zs = n === 2 ? [-hc * 0.5, hc * 0.5] : [-hc * 0.58, 0, hc * 0.58];
         if (n === 3) b(0.13, backH, hc * 2 - 0.22, leather, sx, base - 0.05 + backH / 2, 0).rotation.z = 0.16;                           // 뒷좌석 등받이(벤치)
@@ -177,7 +183,7 @@ export function buildOutdoor(ctx) {
       if (sport) { b(0.2, 0.035, P.W * 0.6, darkPl, FX - 0.04, P.lower[0][1] + 0.015, 0); for (const k of [-0.36, -0.12, 0.12, 0.36]) b(0.16, 0.11, 0.02, darkPl, RX + 0.04, P.lower[0][1] + 0.08, k * P.W * 0.6);   // 앞 스플리터·뒤 디퓨저 날개
         for (const sz of [-1, 1]) { const tb = plane(g, 0.085, 0.085, basic(emblemTex(brand)), -1.37, 1.0, sz * (hc + 0.006)); if (sz < 0) tb.rotation.y = Math.PI; } }   // C 필러 삼지창
       else b(0.05, 0.022, P.W * 0.46, chrome, FX - 0.02, P.lower[0][1] + 0.07, 0);
-      if (suv) { b(0.34, 0.07, hc * 2 - 0.04 - 2 * Math.sin(TH) * (roofY - sill), paint, xR + 0.02, roofY - 0.06, 0); b(0.03, 0.22, P.W + 0.012, chrome, P.wx[1] - 0.66, P.belt - 0.34, 0); b(0.02, 0.012, hc * 0.7, darkPl, rp[1][0] - 0.07, rp[1][1] + 0.02, 0.1); }   // 루프 스포일러·에어 브리더·뒤 와이퍼
+      if (suv) { if (!coupe) b(0.34, 0.07, hc * 2 - 0.04 - 2 * Math.sin(TH) * (roofY - sill), paint, xR + 0.02, roofY - 0.06, 0); b(0.03, 0.22, P.W + 0.012, chrome, P.wx[1] - 0.66, P.belt - 0.34, 0); b(0.02, 0.012, hc * 0.7, darkPl, rp[1][0] - 0.07, rp[1][1] + 0.02, 0.1); }   // 루프 스포일러·에어 브리더·뒤 와이퍼
       if (brand === 'volvo') for (const sz of [-1, 1]) b(0.04, 0.06, 0.26, chrome, RX + 0.012, P.lower[0][1] + 0.12, sz * P.W * 0.3);   // 범퍼 일체형 배기구
       const ug = new THREE.Mesh(new THREE.PlaneGeometry(P.L + 1.6, P.W + 1.8), new THREE.MeshBasicMaterial({ map: radialTex, color: acc, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); ug.rotation.x = -Math.PI / 2; ug.position.y = 0.03; g.add(ug);   // 바닥 조명
     }
@@ -259,7 +265,7 @@ export function buildOutdoor(ctx) {
     tilt(face(0.52, 0.13, plTex, 0, lo + 0.15, 0), true, lo + 0.15, 0.13, 0.03); tilt(face(0.52, 0.13, plTex, 0, P.ry - 0.3, 0, true), false, P.ry - 0.3, 0.13);
     // 차종별 덧붙임
     if (sport) { for (const x of [1.18, 1.02, 0.86]) b(0.09, 0.055, P.W + 0.014, darkPl, x, P.belt - 0.14, 0); b(0.22, 0.03, P.W * 0.8, paint, RX + 0.12, P.ry + 0.2, 0); }        // 펜더 통풍구 3개·립 스포일러
-    if (suv) { for (const sz of [-1, 1]) { b(2.3, 0.04, 0.05, chrome, -0.9, P.top + BEVC + 0.03, sz * (hc - 0.12)); b(2.5, 0.05, 0.16, chrome, 0, P.lower[0][1] + 0.04, sz * (P.W / 2 + 0.05)); } }   // 루프 레일·사이드 스텝
+    if (suv) { for (const sz of [-1, 1]) { if (!coupe) b(2.3, 0.04, 0.05, chrome, -0.9, P.top + BEVC + 0.03, sz * (hc - 0.12)); b(2.5, 0.05, 0.16, chrome, 0, P.lower[0][1] + 0.04, sz * (P.W / 2 + 0.05)); } }   // 루프 레일·사이드 스텝
     const sh = new THREE.Mesh(new THREE.PlaneGeometry(P.L + 1.5, P.W + 1.3), new THREE.MeshBasicMaterial({ map: carShadow, transparent: true, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.022; g.add(sh);
     const beam = new THREE.Mesh(new THREE.PlaneGeometry(8, 5), new THREE.MeshBasicMaterial({ map: radialTex, color: 0xfff1cf, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     beam.rotation.x = -Math.PI / 2; beam.position.set(P.L / 2 + 3.0, 0.035, 0); g.add(beam);
@@ -436,7 +442,7 @@ export function buildOutdoor(ctx) {
   plane(cafeRoof, 0.95, 0.95, new THREE.MeshBasicMaterial({ map: cupIcon, transparent: true, toneMapped: false }), ccx + 0.5 - csign.userData.w / 2 - 0.7, CAF.h + 0.95, CAF.z1 + 0.2).material.color.multiplyScalar(1.5);
   // ---------- 카페 위 2층 직원 식당(2026-11-27 대표 지시로 신설) ----------
   // 바닥 높이 = 건물 2층(5.0). 점심시간에 직원이 2층 통로에서 문(doorZ)으로 건너와 긴 의자에 앉는다(자리 12개 — tower.js dineTick).
-  const DIN = { y: 5.0, doorZ: 0.1, tables: [-1.0, 1.4, 3.8] }, dineSpots = [];
+  const DIN = { y: 5.0, doorZ: 0.1, tables: [-1.0, 1.4, 3.8] }, dineSpots = [], dineRoof = new THREE.Group();
   for (const tz of DIN.tables) for (let i = 0; i < 4; i++) dineSpots.push({ x: ccx - 1.9 + i * 1.5, z: tz - 0.72, user: null });
   // 카페 지붕 묶음(cafeRoof)에 넣는다 — 1층 · 카페 집중 보기에서는 지붕과 함께 걷힌다. 사람 동선은 tower.js dineTick.
   {
@@ -460,10 +466,12 @@ export function buildOutdoor(ctx) {
     }
     for (const [x, z] of [[ccx - 2.0, 0.2], [ccx + 2.4, 0.2], [ccx - 2.0, 3.0], [ccx + 2.4, 3.0], [ccx + 0.6, CAF.z0 + 1.2]]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), glow(0xeafff6, 1.5)); l.position.set(x, dy + 2.55, z); G.add(l); box(G, 0.02, 0.5, 0.02, darkPl, x, dy + 2.9, z, { cast: false }); }
     // 지붕 · 간판
-    box(G, cw + 0.8, 0.3, cd + 0.8, std(0x15132a, { rough: 0.7 }), ccx, dy + dh + 0.15, ccz, { cast: false }); box(G, cw + 0.8, 0.08, 0.08, glow(mint, 2.0), ccx, dy + dh + 0.04, CAF.z1 + 0.42, { cast: false });
-    textPlane(G, '직원 식당 2F', { h: 0.8, px: 140, color: '#8fe3c8', glow: true, boost: 1.5, weight: 900, x: ccx + 0.3, y: dy + dh + 0.85, z: CAF.z1 + 0.2 });
+    const R = dineRoof; G.add(R);   // 식당 지붕 · 간판은 따로 묶어 식당 보기에서 걷는다
+    box(R, cw + 0.8, 0.3, cd + 0.8, std(0x15132a, { rough: 0.7 }), ccx, dy + dh + 0.15, ccz, { cast: false }); box(R, cw + 0.8, 0.08, 0.08, glow(mint, 2.0), ccx, dy + dh + 0.04, CAF.z1 + 0.42, { cast: false });
+    textPlane(R, '직원 식당 2F', { h: 0.8, px: 140, color: '#8fe3c8', glow: true, boost: 1.5, weight: 900, x: ccx + 0.3, y: dy + dh + 0.85, z: CAF.z1 + 0.2 });
     textPlane(G, '오늘의 메뉴', { h: 0.3, px: 72, color: '#eafff6', glow: true, boost: 1.2, weight: 800, x: ccx + 0.6, y: dy + 2.35, z: CAF.z0 + 0.06 });
   }
+  const dineHit = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.6, 3.9, cd + 0.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); dineHit.position.set(ccx, DIN.y + 1.95, ccz); scene.add(dineHit);   // 누르면 식당 안으로
   const cafeHit = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.6, CAF.h + 1.8, cd + 0.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); cafeHit.position.set(ccx, (CAF.h + 1.8) / 2, ccz); scene.add(cafeHit);   // 누르면 카페 안으로
   const cafeSpots = [0, 1, 2, 3, 4].map(i => ({ x: 18.6 + i * 1.0, z: -2.3, user: null }));
   // 음료 컵(책상 위·들고 걷기): hot 종이컵, ice 아메리카노, ade 딸기 에이드, matcha 말차, juice 오렌지 주스
@@ -478,7 +486,7 @@ export function buildOutdoor(ctx) {
   }
 
   return {
-    exec, pool, cars, heli, door, PAD, CAF, DIN, dineSpots, cafeRoof, cafeHit, cafeSpots, makeCup, groups: { lot, cafe, cafeRoof }, DRINK_KINDS: Object.keys(DRINKS),
+    exec, pool, cars, heli, door, PAD, CAF, DIN, dineSpots, dineRoof, dineHit, cafeRoof, cafeHit, cafeSpots, makeCup, groups: { lot, cafe, cafeRoof }, DRINK_KINDS: Object.keys(DRINKS),
     hits: [...cars.map(c => c.hit), heli.hit],
     // 사람에게 탈것을 배정한다(임원은 자기 차, 직원은 비어 있는 업무용 차). 없으면 null.
     acquire(id, kind) { if (kind === 'heli') { if (heli.user && heli.user !== id) return null; heli.user = id; return heli; }
