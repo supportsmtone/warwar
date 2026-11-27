@@ -430,9 +430,14 @@ export function buildOutdoor(ctx) {
   const cupIcon = canvasTex(128, 128, (g, w) => { g.clearRect(0, 0, w, w); g.strokeStyle = '#ffb25c'; g.lineWidth = 9; g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); g.moveTo(30, 46); g.lineTo(38, 110); g.lineTo(82, 110); g.lineTo(90, 46); g.closePath(); g.stroke(); g.beginPath(); g.arc(96, 70, 16, -1.2, 1.2); g.stroke(); for (const x of [46, 60, 74]) { g.beginPath(); g.moveTo(x, 32); g.quadraticCurveTo(x + 8, 22, x, 10); g.stroke(); } });
   plane(cafeRoof, 0.95, 0.95, new THREE.MeshBasicMaterial({ map: cupIcon, transparent: true, toneMapped: false }), ccx + 0.5 - csign.userData.w / 2 - 0.7, CAF.h + 0.95, CAF.z1 + 0.2).material.color.multiplyScalar(1.5);
   // ---------- 카페 위 2층 직원 식당(2026-11-27 대표 지시로 신설) ----------
-  // 카페 지붕 묶음(cafeRoof)에 넣는다 — 1층 · 카페 집중 보기에서는 지붕과 함께 걷힌다. 사람 동선은 없다(건물만).
+  // 바닥 높이 = 건물 2층(5.0). 점심시간에 직원이 2층 통로에서 문(doorZ)으로 건너와 긴 의자에 앉는다(자리 12개 — tower.js dineTick).
+  const DIN = { y: 5.0, doorZ: 0.1, tables: [-1.0, 1.4, 3.8] }, dineSpots = [];
+  for (const tz of DIN.tables) for (let i = 0; i < 4; i++) dineSpots.push({ x: ccx - 1.9 + i * 1.5, z: tz - 0.72, user: null });
+  // 카페 지붕 묶음(cafeRoof)에 넣는다 — 1층 · 카페 집중 보기에서는 지붕과 함께 걷힌다. 사람 동선은 tower.js dineTick.
   {
-    const dy = CAF.h + 0.3, dh = 3.2, mint = new THREE.Color(0x8fe3c8), G = cafeRoof;
+    const dy = DIN.y, dh = 3.2, mint = new THREE.Color(0x8fe3c8), G = cafeRoof;
+    box(G, cw + 0.4, dy - CAF.h - 0.3, cd + 0.2, std(0x15132a, { rough: 0.7 }), ccx, (dy + CAF.h + 0.3) / 2, ccz, { cast: false });   // 카페 지붕 ~ 식당 바닥 사이 띠(카페 간판이 걸리는 자리)
+    box(G, 0.3, 2.4, 1.6, 0x07060f, CAF.x0 - 0.1, dy + 1.2, DIN.doorZ, { cast: false }); for (const sz of [-1, 1]) box(G, 0.34, 2.5, 0.08, glow(mint, 1.5), CAF.x0 - 0.1, dy + 1.25, DIN.doorZ + sz * 0.84, { cast: false });   // 건물 2층에서 건너오는 문
     plane(G, cw, cd, std(0xe9e2d2, { rough: 0.8 }), ccx, dy + 0.012, ccz, { rx: -Math.PI / 2, recv: true });
     plane(G, cw, dh, std(0x1d2a2a, { rough: 0.9 }), ccx, dy + dh / 2, CAF.z0 + 0.01, { recv: true }); box(G, cw + 0.4, dh, 0.25, 0x0d0b1e, ccx, dy + dh / 2, CAF.z0 - 0.14, { cast: false });
     plane(G, cw, dh, cglass, ccx, dy + dh / 2, CAF.z1); plane(G, cd, dh, cglass, CAF.x1, dy + dh / 2, ccz, { ry: Math.PI / 2 });
@@ -444,7 +449,7 @@ export function buildOutdoor(ctx) {
     box(G, 6.4, 0.5, 0.04, new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, roughness: 0.05, depthWrite: false }), ccx + 0.6, dy + 1.4, CAF.z0 + 1.45, { cast: false });
     for (let i = 0; i < 5; i++) box(G, 0.5, 0.03, 0.36, std(0xc9ced6, { metal: 0.6, rough: 0.35 }), CAF.x0 + 0.9, dy + 1.03 + i * 0.035, CAF.z0 + 1.0, { cast: false });
     // 긴 식탁 3줄 + 양쪽 긴 의자 + 식판
-    for (const z of [-1.0, 1.4, 3.8]) {
+    for (const z of DIN.tables) {
       box(G, 6.2, 0.07, 0.9, 0xf1e3cc, ccx + 0.3, dy + 0.74, z); for (const k of [-1, 1]) { box(G, 0.08, 0.72, 0.7, metalMat, ccx + 0.3 + k * 2.8, dy + 0.37, z, { cast: false }); box(G, 6.0, 0.06, 0.34, std(0xc2703a, { rough: 0.9 }), ccx + 0.3, dy + 0.44, z + k * 0.72); }
       for (let i = 0; i < 4; i++) box(G, 0.46, 0.025, 0.32, std(0xdfe4ea, { metal: 0.5, rough: 0.4 }), ccx - 1.9 + i * 1.5, dy + 0.79, z + (i % 2 ? 0.2 : -0.2), { cast: false });
     }
@@ -468,7 +473,7 @@ export function buildOutdoor(ctx) {
   }
 
   return {
-    exec, pool, cars, heli, door, PAD, CAF, cafeRoof, cafeHit, cafeSpots, makeCup, groups: { lot, cafe, cafeRoof }, DRINK_KINDS: Object.keys(DRINKS),
+    exec, pool, cars, heli, door, PAD, CAF, DIN, dineSpots, cafeRoof, cafeHit, cafeSpots, makeCup, groups: { lot, cafe, cafeRoof }, DRINK_KINDS: Object.keys(DRINKS),
     hits: [...cars.map(c => c.hit), heli.hit],
     // 사람에게 탈것을 배정한다(임원은 자기 차, 직원은 비어 있는 업무용 차). 없으면 null.
     acquire(id, kind) { if (kind === 'heli') { if (heli.user && heli.user !== id) return null; heli.user = id; return heli; }

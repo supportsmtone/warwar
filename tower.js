@@ -597,7 +597,7 @@ class Person {
     this.ring.visible = vis; this.ring.position.set(this.pos.x, y0 + 0.035, this.pos.z); this.ring.material.color.setHex(st.state === 'directing' ? C_DIRECT : C_WORK);
     this.ring.material.opacity += ((active ? 0.5 + 0.3 * Math.sin(now / 280) : 0) - this.ring.material.opacity) * 0.12;
     if (this.cup) this.cup.visible = !!this.drink && this.pose === 'seat' && this.sipT <= 0 && !this.away;
-    if (this.carry) { const on = vis && this.pose === 'walk' && !!this.errand && this.errand.stage === 'back'; this.carry.visible = on; if (on) this.carry.position.set(this.pos.x + this.dir * 0.3, y0 + 0.93 + bob, this.pos.z + 0.03); }
+    if (this.carry) { const on = vis && this.pose === 'walk' && !!this.errand && this.errand.stage === 'back' && !this.errand.dine; this.carry.visible = on; if (on) this.carry.position.set(this.pos.x + this.dir * 0.3, y0 + 0.93 + bob, this.pos.z + 0.03); }
     const showLabel = vis && (mode.floor === this.floor || (mode.floor === LOTN && this.floor === 0) || (mode.floor === CAFN && this.floor === 1 && this.pos.x > 14.6));
     this.label.visible = showLabel; if (showLabel) this.label.position.set(this.pos.x, y0 + (this.pose === 'seat' ? 1.78 : 2.02) + bob + lift, this.pos.z);
     const ak = st.flag || (this.id === 'hq:ceo' && HQ.attn > 0 ? 'attn:' + HQ.attn : '');
@@ -607,6 +607,7 @@ class Person {
   arrived(now) {
     const a = this.dest; this.anchor = a; this.vel = 0;
     if (a.vehicle) { const v = a.vehicle; this.board = { t: 0, veh: v, tx: v.bx != null ? v.bx + 0.5 : v.door.x + 0.5, tz: v.bx != null ? LOT.BAY_Z + 0.2 : v.door.z - 0.9 }; this.dir = this.board.tx > this.pos.x ? 1 : -1; this.setPose('walk'); return; }   // 차·헬기에 탄다
+    if (a.dine) { this.setPose('seat'); this.pop = 1; if (this.errand) { this.errand.stage = 'eat'; this.errand.until = now + (9 + Math.random() * 7) * 60000 * LUNCH.speed; } return; }   // 식당 자리에 앉아 식사
     if (a.cafe) { this.setPose('idle'); if (this.errand) { this.errand.stage = 'wait'; this.errand.until = now + 3000 + Math.random() * 2500; } return; }   // 카페 카운터 앞에서 주문
     this.setPose(a.pose, a.flip, a.act); this.pop = 1; if (a.act === 'court') this.swingAt = -1e9;
     if (a.key === 'desk' && this.errand) { this.errand = null; this.nextCafe = now + (25 + Math.random() * 20) * 60000; this.nextSip = now + 3500; }
@@ -630,6 +631,8 @@ function deskAnchor(s) {
 function loungeAnchor(s) { const p = loungeOf[s.id] || { x: 9, z: 0 }; return { key: 'lounge', floor: s.floor, pts: [{ x: p.x, z: AISLE[s.floor] }, p], pose: 'idle', flip: false }; }
 function gymAnchor(i) { const p = GYM_SPOTS[i % GYM_SPOTS.length]; return { key: 'gym' + i, floor: 1, pts: [{ x: p.x, z: AISLE[1] }, { x: p.x, z: p.z }], pose: 'sport', act: p.act, flip: p.act === 'court' ? p.court === 'R' : !!p.flip, court: p.court, home: { x: p.x, z: p.z } }; }   // 스윙 그림은 오른쪽을 본다 → 오른쪽 코트 선수만 뒤집어 서로 마주 본다
 function cafeAnchor(i) { const sp = outdoor.cafeSpots[i], C = outdoor.CAF; return { key: 'cafe' + i, floor: 1, cafe: true, pose: 'idle', pts: [{ x: 13.6, z: AISLE[1] }, { x: 13.6, z: C.doorZ }, { x: 16.6, z: C.doorZ }, { x: 16.6, z: -0.6 }, { x: sp.x, z: -0.6 }, { x: sp.x, z: sp.z }] }; }
+// 직원 식당 자리(2026-11-27): 건물 2층 통로 → 오른쪽 벽의 문 → 식당 긴 의자. 식당 바닥이 2층 높이라 2층 사람으로 다룬다.
+function dineAnchor(i) { const sp = outdoor.dineSpots[i], N = outdoor.DIN; return { key: 'dine' + i, floor: 2, dine: true, pose: 'seat', flip: false, pts: [{ x: 13.6, z: AISLE[2] }, { x: 13.6, z: N.doorZ }, { x: 16.3, z: N.doorZ }, { x: 16.3, z: sp.z }, { x: sp.x, z: sp.z }] }; }
 function outAnchor(v, kind) {
   if (kind === 'heli') return { key: 'heli', floor: RN, pts: [{ x: 4.4, z: AISLE[RN] }, { x: 4.4, z: v.door.z }, { x: v.door.x, z: v.door.z }], pose: 'idle', vehicle: v };
   return { key: 'out@' + v.bx, floor: 0, pts: [{ x: v.door.x, z: AISLE[0] }, { x: v.door.x, z: v.door.z }], pose: 'idle', vehicle: v };
@@ -717,11 +720,31 @@ function setDrink(p, kind) {
   p.cup = outdoor.makeCup(kind); p.cup.scale.setScalar(1.25); p.cup.position.set(d.x + d.kbx + 0.52, 0.775, d.z - d.dp * 0.02); (F[p.s.floor].g).add(p.cup);
   p.carry = outdoor.makeCup(kind); p.carry.scale.setScalar(1.35); p.carry.visible = false; scene.add(p.carry);
 }
+// ---------- 점심시간 직원 식당(2026-11-27 대표 지시 「동선 추가」) ----------
+// 12:00~13:00(이 컴퓨터 시각)에 자리에 앉아 있던 직원이 한 사람씩 시차를 두고(0~25분) 식당에 가서 9~16분 먹고 돌아온다. 하루 한 번, 동시에 8명까지.
+// 확인용: 주소에 ?lunch=1 을 붙이면 지금을 점심시간으로 보고 60배 빠르게 돈다.
+const LUNCH = { force: /[?&]lunch=1/.test(location.search), speed: /[?&]lunch=1/.test(location.search) ? 1 / 60 : 1, max: 8, day: '', done: {}, t0: 0 };
+let dineAt = 0;
+function dineTick(now) {
+  if (now - dineAt < 1000) return; dineAt = now;
+  const d = new Date(), day = d.toDateString(), mins = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  if (day !== LUNCH.day) { LUNCH.day = day; LUNCH.done = {}; LUNCH.t0 = now; }
+  const open = LUNCH.force || (mins >= 720 && mins < 780), since = LUNCH.force ? (now - LUNCH.t0) / 60000 / LUNCH.speed : mins - 720;
+  { const dn = {}; for (const s of HQ.staff) { const e = people[s.id].errand; if (e && e.dine) dn[s.id] = e.stage; } HQ.dineNow = dn; }   // 식당 이용 현황(go · eat · back)
+  for (const s of HQ.staff) { const p = people[s.id], e = p.errand;
+    if (e && e.dine) { if (e.stage === 'eat' && now > e.until) { e.slot.user = null; e.stage = 'back'; p.go(deskAnchor(s)); } continue; }
+    if (!open || e || LUNCH.done[s.id] || p.pose !== 'seat' || p.away || p.route.length || !p.stat || p.stat.place !== 'desk' || !deskOf[s.id]) continue;
+    if (since < hashN(s.id + 'lunch') % 26) continue;
+    if (HQ.staff.filter(x => { const q = people[x.id].errand; return q && q.dine; }).length >= LUNCH.max) continue;
+    const i = outdoor.dineSpots.findIndex(sp => !sp.user); if (i < 0) continue;
+    outdoor.dineSpots[i].user = s.id; LUNCH.done[s.id] = 1; p.errand = { stage: 'go', dine: true, slot: outdoor.dineSpots[i] }; p.sipT = 0; p.go(dineAnchor(i)); }
+}
 let cafeAt = 0, cafeKey = '';
 function cafeTick(now) {
   if (now - cafeAt < 900) return; cafeAt = now;
-  { const cn = {}; for (const s of HQ.staff) { const e = people[s.id].errand; if (e && e.stage !== 'back') cn[s.id] = e.stage; } const k = JSON.stringify(cn); if (k !== cafeKey) { cafeKey = k; HQ.cafeNow = cn; if (mode.floor === CAFN || mode.floor == null) HQ.refresh && HQ.refresh(); } }   // 카페 이용 현황(패널용)
+  { const cn = {}; for (const s of HQ.staff) { const e = people[s.id].errand; if (e && e.stage !== 'back' && !e.dine) cn[s.id] = e.stage; } const k = JSON.stringify(cn); if (k !== cafeKey) { cafeKey = k; HQ.cafeNow = cn; if (mode.floor === CAFN || mode.floor == null) HQ.refresh && HQ.refresh(); } }   // 카페 이용 현황(패널용)
   for (const s of HQ.staff) { const p = people[s.id];
+    if (p.errand && p.errand.dine) continue;   // 식사 중 — dineTick 이 맡는다
     if (p.errand) { if (p.errand.stage === 'wait' && now > p.errand.until) { setDrink(p, outdoor.DRINK_KINDS[Math.floor(Math.random() * outdoor.DRINK_KINDS.length)]); p.errand.slot.user = null; p.errand.stage = 'back'; p.go(deskAnchor(s)); } continue; }
     if (p.pose !== 'seat' || p.away || p.route.length || now < p.nextCafe || !p.stat || p.stat.place !== 'desk' || !deskOf[s.id]) continue;
     if (HQ.staff.filter(x => people[x.id].errand).length >= 2) continue;   // 자리를 비우는 사람은 동시에 2명까지만(일하는 모습이 보이게)
@@ -836,6 +859,8 @@ renderer.domElement.addEventListener('pointerdown', e => { down = [e.clientX, e.
 renderer.domElement.addEventListener('pointerup', e => {
   const d = down; down = null; if (!d || Math.hypot(e.clientX - d[0], e.clientY - d[1]) > 6) return;
   const h = pick(e); if (h && h.veh) focusVehicle(h.veh); else if (h && h.floor) HQ.focusFloor(h.floor); else if (h && h.id) HQ.selectStaff(h.id);
+  else if (mode.floor != null) HQ.focusFloor(null);   // 2026-11-27: 확대해 들어간 화면에서 빈 곳을 누르면 전체 화면으로
+  else { const c = camFor(null); if (camera.position.distanceTo(c.pos) > 3 || controls.target.distanceTo(c.tgt) > 1.5) goCam(c, 600); }   // 전체 보기에서 손으로 확대 · 회전했거나 차를 가까이 본 뒤에도 같다
 });
 renderer.domElement.addEventListener('wheel', () => { userAt = performance.now(); }, { passive: true });
 
@@ -870,7 +895,7 @@ function frame(now) {
   if (shuttle) rallyStep(dt, now);
   let nearDoor = false;
   for (const s of HQ.staff) { const p = people[s.id]; p.update(dt, now); if (!nearDoor && p.route.length && !p.away && p.floor <= 1 && Math.hypot(p.pos.x - LOT.DOOR_X, p.pos.z - 7.6) < 2.6) nearDoor = true; }
-  outdoor.update(dt, now, nearDoor); cafeTick(now);
+  outdoor.update(dt, now, nearDoor); cafeTick(now); dineTick(now);
   // 그림자는 움직이는 것이 있을 때만 다시 계산한다
   if (outdoor.anyMoving || NS.some(n => F[n].lift !== F[n].liftT) || roofS.lift !== roofS.liftT) shadowDirty = 3;
   if (shadowDirty > 0 || now - shadowAt > 2500) { renderer.shadowMap.needsUpdate = true; shadowDirty--; shadowAt = now; }
